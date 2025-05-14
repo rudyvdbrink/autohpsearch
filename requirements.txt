@@ -38,3 +38,6 @@ typing_extensions==4.13.2
 tzdata==2025.2
 wcwidth==0.2.13
 xgboost==3.0.1
+torch==2.6.0
+torchaudio==2.6.0
+torchvision==0.21.0
