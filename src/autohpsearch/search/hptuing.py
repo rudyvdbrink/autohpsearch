@@ -16,7 +16,7 @@ from sklearn.svm import SVC
 from sklearn.neighbors import KNeighborsClassifier
 import xgboost as xgb
 
-from models.nn import AutoHPSearchNN
+from autohpsearch.models.nn import AutoHPSearchClassifier, AutoHPSearchRegressor
 
 
 # %% functions for hypergrid searching
@@ -117,7 +117,7 @@ def generate_hypergrid(model_name=None):
         },
         'dnn': {
             'model_name': 'dnn',
-            'function': AutoHPSearchNN,
+            'function': AutoHPSearchClassifier,
             'param_grid': {
                 # Network architecture
                 'hidden_layers': [(64, 32), (128, 64), (256, 128, 64), (64, 64, 64)],
