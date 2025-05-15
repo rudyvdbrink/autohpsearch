@@ -1,4 +1,5 @@
 import pandas as pd
+import time
 
 from sklearn.model_selection import GridSearchCV, RandomizedSearchCV
 from sklearn.metrics import (make_scorer, 
@@ -83,6 +84,40 @@ def generate_hypergrid(model_name=None, task_type='classification'):
     else:
         raise TypeError("model_name must be None, a string, or a list of strings")
 
+def measure_prediction_time(model, X, n_repeats=100):
+    """
+    Measure the average execution time for model prediction.
+    
+    Parameters:
+    -----------
+    model : estimator
+        The trained model to evaluate
+    X : array-like
+        Features to use for prediction
+    n_repeats : int, default=100
+        Number of times to repeat the prediction for more reliable timing
+    
+    Returns:
+    --------
+    float
+        Average prediction time in milliseconds per sample
+    """
+    # Take a single sample for individual prediction timing
+    single_sample = X[0:1]
+    
+    # Warm up the prediction (first prediction can be slower)
+    model.predict(single_sample)
+    
+    # Measure time for single sample prediction
+    start_time = time.time()
+    for _ in range(n_repeats):
+        model.predict(single_sample)
+    end_time = time.time()
+    
+    # Calculate average time per prediction in milliseconds
+    avg_time_ms = ((end_time - start_time) / n_repeats) * 1000
+    
+    return avg_time_ms
 
 def tune_hyperparameters(X_train, y_train, X_test, y_test, hypergrid=None, scoring=None, cv=5, 
                         task_type='classification', search_type='grid', n_iter=10, verbose=False):
@@ -242,6 +277,9 @@ def tune_hyperparameters(X_train, y_train, X_test, y_test, hypergrid=None, scori
             
             # Evaluate on test set based on task type
             y_pred = best_model.predict(X_test)
+
+            # Measure prediction time
+            pred_time_ms = measure_prediction_time(best_model, X_test)
             
             # First determine which metric to use for evaluation
             if task_type == 'classification':
@@ -298,7 +336,7 @@ def tune_hyperparameters(X_train, y_train, X_test, y_test, hypergrid=None, scori
             best_scores[model_name] = {
                 'cv_score': search.best_score_,
                 'test_score': test_score,
-                'rank': search.best_index_ + 1
+                'prediction_time_ms': pred_time_ms,
             }
             
             print(f"  Best CV score: {search.best_score_:.4f}")
@@ -316,7 +354,7 @@ def tune_hyperparameters(X_train, y_train, X_test, y_test, hypergrid=None, scori
     )
     
     # Sort by test score (and cv_score in case of ties)
-    results_df = results_df.sort_values(['test_score', 'cv_score'], ascending=[False, False])
+    results_df = results_df.sort_values(['test_score', 'cv_score', 'prediction_time_ms'], ascending=[False, False, True])
     
     # Find the best overall model
     if len(results_df) > 0:

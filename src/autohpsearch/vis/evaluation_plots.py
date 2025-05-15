@@ -149,24 +149,3 @@ def regression_residual_plot(y_true, y_score):
     plt.title('Residual Plot')
     plt.show()
 
-# %% feature importance plot
-
-def plot_permutation_importance(feature_importance,labels):
-    """Make boxplots of feature importance.
-
-    Args:
-        feature_importance (dict): Dictionary of feature importances.
-        labels (list): Names of the features.
-    """    
-    _, ax = plt.subplots(figsize=(7, 6))
-    perm_sorted_idx = feature_importance.importances_mean.argsort()
-
-    ax.boxplot(
-        feature_importance.importances[perm_sorted_idx].T,
-        vert=False,
-        labels=labels[perm_sorted_idx],
-    )
-    ax.axvline(x=0, color="k", linestyle="--")
-    plt.show()
-
-# %%
