@@ -3,15 +3,7 @@
 
 A Python package for automatic hyperparameter tuning of machine learning models for cross-sectional data.
 
-AutoHPSearch simplifies the process of hyperparameter optimization for various machine learning models. It provides a unified interface to tune hyperparameters across multiple model types including:
-
-- Logistic Regression
-- Random Forest
-- Gradient Boosting
-- SVM
-- K-Nearest Neighbors
-- XGBoost
-- Feed Forward Neural Networks (custom PyTorch implementation)
+AutoHPSearch simplifies the process of hyperparameter optimization for various machine learning models by providing a unified interface to tune hyperparameters across multiple model types.
 
 ## Installation
 
@@ -26,7 +18,6 @@ git clone https://github.com/rudyvdbrink/autohpsearch.git
 cd autohpsearch
 pip install -e .
 ```
-
 
 ## Usage
 
@@ -99,21 +90,34 @@ y_pred = nn_clf.predict(X_test_scaled)
 
 AutoHPSearch supports the following model types:
 
-1. **logistic_regression**: Logistic regression classifier
-2. **random_forest**: Random forest classifier
-3. **gradient_boosting**: Gradient boosting classifier
-4. **svm**: Support vector machine classifier
-5. **knn**: K-nearest neighbors classifier
-6. **xgboost**: XGBoost classifier
-7. **dnn**: Deep neural network classifier/regressor
+### Classification Models
+1. **logistic_regression**: Logistic regression classifier (including L1 / L2 / elastic net regularization)
+2. **random_forest_clf**: Random forest classifier
+3. **gradient_boosting_clf**: Gradient boosting classifier
+4. **svm_clf**: Support vector machine classifier
+5. **knn_clf**: K-nearest neighbors classifier
+6. **xgboost_clf**: XGBoost classifier
+7. **dnn_clf**: Deep neural network classifier
+
+### Regression Models
+1. **linear_regression**: Linear regression
+2. **ridge**: Ridge regression
+3. **lasso**: Lasso regression
+4. **elastic_net**: Elastic Net regression
+5. **random_forest_reg**: Random forest regressor
+6. **gradient_boosting_reg**: Gradient boosting regressor
+7. **svr**: Support vector regression
+8. **knn_reg**: K-nearest neighbors regressor
+9. **xgboost_reg**: XGBoost regressor
+10. **dnn_reg**: Deep neural network regressor
 
 ## Hyperparameter Tuning
 
 The `generate_hypergrid()` function creates a comprehensive grid of hyperparameters for each model type. You can:
 
-- Generate grids for all supported models: `generate_hypergrid()`
-- Generate a grid for a specific model: `generate_hypergrid('random_forest')`
-- Generate grids for multiple models: `generate_hypergrid(['logistic_regression', 'xgboost'])`
+- Generate grids for all supported models: `generate_hypergrid(task_type='classification')`
+- Generate a grid for a specific model: `generate_hypergrid('random_forest_clf')` or `generate_hypergrid('random_forest_reg', task_type='regression')`
+- Generate grids for multiple models: `generate_hypergrid(['logistic_regression', 'xgboost_clf'])`
 
 The `tune_hyperparameters()` function performs grid search cross-validation on the specified models and returns:
 
@@ -129,6 +133,8 @@ AutoHPSearch includes custom neural network implementations that are compatible 
 - `AutoHPSearchRegressor`: For regression tasks
 
 These models provide flexibility in architecture design and training configuration while maintaining the familiar scikit-learn API.
+
+CUDA-enabled computing is implemented, though require you to install the right version of torch+cuda depending on your GPU.
 
 ## Author
 
