@@ -1,14 +1,4 @@
-# %%
-
-import torch
-import torch.nn as nn
-import torch.optim as optim
-from torch.utils.data import DataLoader, TensorDataset
-from sklearn.base import BaseEstimator, ClassifierMixin
-import numpy as np
-
-# %%
-# %%
+# %% import libraries
 
 import torch
 import torch.nn as nn
@@ -17,7 +7,7 @@ from torch.utils.data import DataLoader, TensorDataset
 from sklearn.base import BaseEstimator, ClassifierMixin, RegressorMixin
 import numpy as np
 
-# %%
+# %% base estimator for neural networks
 
 class AutoHPSearchNN(BaseEstimator):
     """
@@ -266,6 +256,7 @@ class AutoHPSearchNN(BaseEstimator):
         else:  # Regression
             return predictions
 
+# %% variants for classification and regression
 
 # Create specific variants that inherit from scikit-learn mixin classes
 class AutoHPSearchClassifier(AutoHPSearchNN, ClassifierMixin):

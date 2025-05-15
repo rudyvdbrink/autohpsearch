@@ -1,3 +1,5 @@
+# %% libraries
+
 import numpy as np
 from sklearn.datasets import make_classification, make_regression
 from sklearn.model_selection import train_test_split
@@ -6,10 +8,11 @@ from sklearn.metrics import accuracy_score, mean_squared_error, r2_score
 import matplotlib.pyplot as plt
 from autohpsearch.models.nn import AutoHPSearchClassifier, AutoHPSearchRegressor
 
+# %% classification example
+
 # Set random seed for reproducibility
 np.random.seed(42)
 
-# ---- Classification Example ----
 print("Classification Example:")
 # Generate synthetic classification data
 X_clf, y_clf = make_classification(
@@ -54,7 +57,8 @@ y_proba_clf = clf.predict_proba(X_test_clf)
 clf_accuracy = accuracy_score(y_test_clf, y_pred_clf)
 print(f"Classification accuracy: {clf_accuracy:.4f}")
 
-# ---- Regression Example ----
+#%% regression example 
+
 print("\nRegression Example:")
 # Generate synthetic regression data
 X_reg, y_reg = make_regression(
@@ -100,9 +104,9 @@ print(f"Regression MSE: {mse:.4f}")
 print(f"Regression R²: {r2:.4f}")
 
 # Optional: Plot regression predictions vs true values
-plt.figure(figsize=(10, 6))
+plt.figure(figsize=(6 , 6))
 plt.scatter(y_test_reg, y_pred_reg, alpha=0.5)
-plt.plot([-3, 3], [-3, 3], 'r--')  # Perfect prediction line
+plt.plot([np.min(y_test_reg), np.max(y_test_reg)], [np.min(y_test_reg), np.max(y_test_reg)], 'r--')  # Perfect prediction line
 plt.xlabel('True Values')
 plt.ylabel('Predictions')
 plt.title('Regression Predictions vs True Values')

@@ -3,26 +3,20 @@ import pandas as pd
 from sklearn.model_selection import GridSearchCV
 from sklearn.metrics import (make_scorer, 
                              balanced_accuracy_score, 
-                             accuracy_score, 
-                             root_mean_squared_error)
+                             accuracy_score,
+                             mean_squared_error,
+                             mean_absolute_error,
+                             r2_score)
 
 import numpy as np
 import pandas as pd
 from tqdm import tqdm
 
-from sklearn.linear_model import LogisticRegression
-from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
-from sklearn.svm import SVC
-from sklearn.neighbors import KNeighborsClassifier
-import xgboost as xgb
-
-from autohpsearch.models.nn import AutoHPSearchClassifier, AutoHPSearchRegressor
-
+from autohpsearch.search.grids import get_grid
 
 # %% functions for hypergrid searching
 
-
-def generate_hypergrid(model_name=None):
+def generate_hypergrid(model_name=None, task_type='classification'):
     """
     Generate a hyperparameter grid for a given model or models.
     
@@ -30,9 +24,12 @@ def generate_hypergrid(model_name=None):
     -----------
     model_name : None, str, or list
         The model name(s) to generate hyperparameter grids for.
-        If None, grids for all available models are returned.
+        If None, grids for all available models of the specified task_type are returned.
         If str, grid for the specified model is returned.
         If list, grids for all models in the list are returned.
+    task_type : str, default='classification'
+        The type of machine learning task.
+        Options: 'classification' or 'regression'
     
     Returns:
     --------
@@ -41,101 +38,20 @@ def generate_hypergrid(model_name=None):
         - model_name: Name of the model
         - function: The function handle for the model
         - param_grid: Hyperparameter grid for the model
+        - task_type: The task type ('classification' or 'regression')
     """
-    # Define all available models with their hyperparameter grids
-    all_models = {
-        'logistic_regression': {
-            'model_name': 'logistic_regression',
-            'function': LogisticRegression,
-            'param_grid': {
-                'C': [0.001, 0.01, 0.1, 1, 10, 100],
-                'penalty': ['l1', 'l2', 'elasticnet'],
-                'solver': ['liblinear', 'saga'],                
-                'class_weight': [None, 'balanced']
-            }
-        },       
-        'random_forest': {
-            'model_name': 'random_forest',
-            'function': RandomForestClassifier,
-            'param_grid': {
-                'n_estimators': [50, 100, 200, 500],
-                'max_depth': [None, 5, 10, 20, 30],
-                'min_samples_split': [2, 5, 10],
-                'min_samples_leaf': [1, 2, 4],
-                'max_features': ['sqrt', 'log2', None],
-                'bootstrap': [True, False],
-                'class_weight': [None, 'balanced', 'balanced_subsample']
-            }
-        },
-        'gradient_boosting': {
-            'model_name': 'gradient_boosting',
-            'function': GradientBoostingClassifier,
-            'param_grid': {
-                'learning_rate': [0.01, 0.05, 0.1, 0.2],
-                'n_estimators': [50, 100, 200, 500],
-                'max_depth': [3, 5, 7, 9],
-                'min_samples_split': [2, 5, 10],
-                'min_samples_leaf': [1, 2, 4],
-                'subsample': [0.8, 0.9, 1.0],
-                'max_features': ['sqrt', 'log2', None]
-            }
-        },
-        'svm': {
-            'model_name': 'svm',
-            'function': SVC,
-            'param_grid': {
-                'C': [0.1, 1, 10, 100],
-                'kernel': ['linear', 'poly', 'rbf', 'sigmoid'],
-                'gamma': ['scale', 'auto', 0.001, 0.01, 0.1],
-                'degree': [2, 3, 4],  # for poly kernel
-                'probability': [True],
-                'class_weight': [None, 'balanced']
-            }
-        },
-        'knn': {
-            'model_name': 'knn',
-            'function': KNeighborsClassifier,
-            'param_grid': {
-                'n_neighbors': [3, 5, 7, 9, 11, 15],
-                'weights': ['uniform', 'distance'],
-                'algorithm': ['auto', 'ball_tree', 'kd_tree', 'brute'],
-                'leaf_size': [10, 20, 30, 40, 50],
-                'p': [1, 2]  # 1 for manhattan_distance, 2 for euclidean_distance
-            }
-        },
-        'xgboost': {
-            'model_name': 'xgboost',
-            'function': xgb.XGBClassifier,
-            'param_grid': {
-                'n_estimators': [50, 100, 200, 500, 750, 1000],
-                'max_depth': [3, 4, 5, 10, 15, 20],
-                'learning_rate': [0.01, 0.05, 0.1, 0.2],
-                'subsample': [0.8, 0.9, 1.0],
-                'colsample_bytree': [0.8, 0.9, 1.0],
-                'min_child_weight': [1, 3, 5]  # Minimum sum of instance weight for child nodes
-            }
-        },
-        'dnn': {
-            'model_name': 'dnn',
-            'function': AutoHPSearchClassifier,
-            'param_grid': {
-                # Network architecture
-                'hidden_layers': [(64, 32), (128, 64), (256, 128, 64), (64, 64, 64)],
-                'activation': ['relu', 'tanh', 'elu', 'leaky_relu'],
-                'dropout_rate': [0.0, 0.2, 0.3, 0.5],
-                
-                # Training parameters
-                'optimizer': ['adam', 'sgd', 'rmsprop'],
-                'learning_rate': [0.0001, 0.001, 0.01],
-                'batch_size': [16, 32, 64, 128],
-                'epochs': [50, 100, 150]
-            }
-        }        
-    }
+    
+    # Retrun models based on task_type parameter
+    if task_type == 'classification':
+        all_models = get_grid(task_type='classification')
+    elif task_type == 'regression':
+        all_models = get_grid(task_type='regression')
+    else:
+        raise ValueError(f"Invalid task_type: {task_type}. Must be 'classification' or 'regression'.")
     
     # Return hypergrids based on input
     if model_name is None:
-        # Return all models
+        # Return all models for the specified task_type
         return list(all_models.values())
     
     elif isinstance(model_name, str):
@@ -145,7 +61,7 @@ def generate_hypergrid(model_name=None):
             return all_models[model_name]
         else:
             available_models = list(all_models.keys())
-            raise ValueError(f"Model '{model_name}' not found. Available models: {available_models}")
+            raise ValueError(f"Model '{model_name}' not found. Available models for {task_type}: {available_models}")
     
     elif isinstance(model_name, list):
         # Return multiple specified models
@@ -156,14 +72,14 @@ def generate_hypergrid(model_name=None):
             if name in all_models:
                 result.append(all_models[name])
             else:
-                raise ValueError(f"Model '{name}' not found. Available models: {available_models}")
+                raise ValueError(f"Model '{name}' not found. Available models for {task_type}: {available_models}")
         return result
     
     else:
         raise TypeError("model_name must be None, a string, or a list of strings")
 
 
-def tune_hyperparameters(X_train, y_train, X_test, y_test, hypergrid=None, scoring='balanced_accuracy', cv=5):
+def tune_hyperparameters(X_train, y_train, X_test, y_test, hypergrid=None, scoring=None, cv=5, task_type='classification'):
     """
     Perform hyperparameter tuning using grid search for multiple models and return the best model,
     optimal parameters, and results.
@@ -173,19 +89,23 @@ def tune_hyperparameters(X_train, y_train, X_test, y_test, hypergrid=None, scori
     X_train : array-like
         Training features
     y_train : array-like
-        Training labels
+        Training labels/targets
     X_test : array-like
         Test features
     y_test : array-like
-        Test labels
+        Test labels/targets
     hypergrid : None, dict, or list of dict, default=None
         The model configuration(s) to tune hyperparameters for.
         This should be the output from generate_hypergrid().
-        If None, all available models from generate_hypergrid() are used.
-    scoring : str, default='balanced_accuracy'
+        If None, all available models from generate_hypergrid() for the specified task_type are used.
+    scoring : str, default=None
         Scoring metric to use for grid search
+        If None, defaults to 'balanced_accuracy' for classification and 'neg_root_mean_squared_error' for regression
     cv : int, default=5
         Number of cross-validation folds
+    task_type : str, default='classification'
+        The type of machine learning task.
+        Options: 'classification' or 'regression'
     
     Returns:
     --------
@@ -195,9 +115,16 @@ def tune_hyperparameters(X_train, y_train, X_test, y_test, hypergrid=None, scori
         - optimal_params: Dictionary of optimal parameters for each model
         - results: DataFrame with best scores for each model
     """
-    # If hypergrid is None, get all available models
+    # Set default scoring metric based on task type
+    if scoring is None:
+        if task_type == 'classification':
+            scoring = 'balanced_accuracy'
+        else:  # regression
+            scoring = 'neg_root_mean_squared_error'
+    
+    # If hypergrid is None, get all available models for the specified task type
     if hypergrid is None:
-        hypergrid = generate_hypergrid()
+        hypergrid = generate_hypergrid(task_type=task_type)
     # If hypergrid is a single model config (dict), convert to list
     elif isinstance(hypergrid, dict):
         hypergrid = [hypergrid]
@@ -215,6 +142,11 @@ def tune_hyperparameters(X_train, y_train, X_test, y_test, hypergrid=None, scori
         model_name = config['model_name']
         model_func = config['function']
         param_grid = config['param_grid']
+        model_task_type = config.get('task_type', task_type)  # Get task_type from config or use default
+        
+        if model_task_type != task_type:
+            print(f"Skipping {model_name}: Model task type ({model_task_type}) doesn't match requested task type ({task_type})")
+            continue
         
         print(f"Tuning {model_name}...")
         
@@ -238,9 +170,14 @@ def tune_hyperparameters(X_train, y_train, X_test, y_test, hypergrid=None, scori
             # Get the best model
             best_model = grid_search.best_estimator_
             
-            # Evaluate on test set
+            # Evaluate on test set based on task type
             y_pred = best_model.predict(X_test)
-            test_score = balanced_accuracy_score(y_test, y_pred)
+            
+            if task_type == 'classification':
+                test_score = balanced_accuracy_score(y_test, y_pred)
+            else:  # regression
+                # Use negative RMSE to be consistent with scoring metric
+                test_score = -np.sqrt(mean_squared_error(y_test, y_pred))
             
             # Store results
             best_models[model_name] = best_model
@@ -272,7 +209,25 @@ def tune_hyperparameters(X_train, y_train, X_test, y_test, hypergrid=None, scori
     if len(results_df) > 0:
         best_model_name = results_df.index[0]
         best_overall_model = best_models[best_model_name]
-        print(f"\nBest overall model: {best_model_name} with test score: {results_df.loc[best_model_name, 'test_score']:.4f}")
+        
+        # Display appropriate metrics based on task type
+        if task_type == 'classification':
+            metric_display = "balanced accuracy"
+        else:  # regression
+            metric_display = "negative RMSE"
+            
+        print(f"\nBest overall model: {best_model_name} with test {metric_display}: {results_df.loc[best_model_name, 'test_score']:.4f}")
+        
+        # Add additional evaluation metrics for regression
+        if task_type == 'regression':
+            y_pred = best_overall_model.predict(X_test)
+            rmse = np.sqrt(mean_squared_error(y_test, y_pred))
+            mae = mean_absolute_error(y_test, y_pred)
+            r2 = r2_score(y_test, y_pred)
+            print(f"Additional metrics for best model:")
+            print(f"  RMSE: {rmse:.4f}")
+            print(f"  MAE: {mae:.4f}")
+            print(f"  R²: {r2:.4f}")
     else:
         best_overall_model = None
         print("No models were successfully trained.")
