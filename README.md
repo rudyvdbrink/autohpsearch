@@ -21,6 +21,11 @@ pip install -e .
 
 ## Usage
 
+### Examples Scripts
+- [Classification](https://github.com/rudyvdbrink/autohpsearch/blob/main/examples/classification_basic.ipynb) - Demonstrates simple binary classification
+- [Regression](https://github.com/rudyvdbrink/autohpsearch/blob/main/examples/regression_basic.ipynb) - Simple regression example
+- [Neural Network Usage](https://github.com/rudyvdbrink/autohpsearch/blob/main/examples/nn_usage.py) - Syntax for using scikit-learn compatible neural networks
+
 ### Basic Example
 
 ```python
@@ -85,6 +90,7 @@ nn_clf.fit(X_train_scaled, y_train)
 # Make predictions
 y_pred = nn_clf.predict(X_test_scaled)
 ```
+
 
 ## Available Models
 
