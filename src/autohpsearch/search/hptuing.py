@@ -1,6 +1,6 @@
 import pandas as pd
 
-from sklearn.model_selection import GridSearchCV
+from sklearn.model_selection import GridSearchCV, RandomizedSearchCV
 from sklearn.metrics import (make_scorer, 
                              balanced_accuracy_score, 
                              accuracy_score,
@@ -13,6 +13,7 @@ import pandas as pd
 from tqdm import tqdm
 
 from autohpsearch.search.grids import get_grid
+from autohpsearch.utils.context import hush
 
 # %% functions for hypergrid searching
 
@@ -79,7 +80,8 @@ def generate_hypergrid(model_name=None, task_type='classification'):
         raise TypeError("model_name must be None, a string, or a list of strings")
 
 
-def tune_hyperparameters(X_train, y_train, X_test, y_test, hypergrid=None, scoring=None, cv=5, task_type='classification'):
+def tune_hyperparameters(X_train, y_train, X_test, y_test, hypergrid=None, scoring=None, cv=5, 
+                        task_type='classification', search_type='grid', n_iter=10, verbose=False):
     """
     Perform hyperparameter tuning using grid search for multiple models and return the best model,
     optimal parameters, and results.
@@ -106,6 +108,14 @@ def tune_hyperparameters(X_train, y_train, X_test, y_test, hypergrid=None, scori
     task_type : str, default='classification'
         The type of machine learning task.
         Options: 'classification' or 'regression'
+    search_type : str, default='grid'
+        Type of hyperparameter search to perform.
+        Options: 'grid' for grid search, 'random' for random search
+    n_iter : int, default=10
+        Number of parameter settings sampled when search_type='random'
+    verbose : bool, default=False
+        Whether to display verbose output during fitting and evaluation.
+        If True, extended output from scikit-learn will be shown.
     
     Returns:
     --------
@@ -154,21 +164,37 @@ def tune_hyperparameters(X_train, y_train, X_test, y_test, hypergrid=None, scori
             # Initialize the model
             model = model_func()
             
-            # Set up GridSearchCV
-            grid_search = GridSearchCV(
-                estimator=model,
-                param_grid=param_grid,
-                scoring=scoring,
-                cv=cv,
-                n_jobs=-1,
-                verbose=1
-            )
-            
-            # Fit GridSearchCV
-            grid_search.fit(X_train, y_train)
+           # Set up search strategy based on search_type
+            if search_type == 'grid':
+                search = GridSearchCV(
+                    estimator=model,
+                    param_grid=param_grid,
+                    scoring=scoring,
+                    cv=cv,
+                    n_jobs=-1,
+                    verbose=1
+                )
+            else:  # search_type == 'random'
+                search = RandomizedSearchCV(
+                    estimator=model,
+                    param_distributions=param_grid,
+                    n_iter=n_iter,
+                    scoring=scoring,
+                    cv=cv,
+                    n_jobs=-1,
+                    verbose=1
+                )
+                
+            # Fit the search
+            if verbose:
+                search.fit(X_train, y_train)
+            else:
+                with hush():
+                    search.fit(X_train, y_train)
             
             # Get the best model
-            best_model = grid_search.best_estimator_
+            best_model = search.best_estimator_            
+            
             
             # Evaluate on test set based on task type
             y_pred = best_model.predict(X_test)
@@ -181,16 +207,16 @@ def tune_hyperparameters(X_train, y_train, X_test, y_test, hypergrid=None, scori
             
             # Store results
             best_models[model_name] = best_model
-            optimal_params[model_name] = grid_search.best_params_
+            optimal_params[model_name] = search.best_params_
             best_scores[model_name] = {
-                'cv_score': grid_search.best_score_,
+                'cv_score': search.best_score_,
                 'test_score': test_score,
-                'rank': grid_search.best_index_ + 1
+                'rank': search.best_index_ + 1
             }
             
-            print(f"  Best CV score: {grid_search.best_score_:.4f}")
+            print(f"  Best CV score: {search.best_score_:.4f}")
             print(f"  Test score: {test_score:.4f}")
-            print(f"  Best parameters: {grid_search.best_params_}")
+            print(f"  Best parameters: {search.best_params_}")
             
         except Exception as e:
             print(f"Error with {model_name}: {str(e)}")
