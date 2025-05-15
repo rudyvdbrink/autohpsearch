@@ -2,8 +2,9 @@
 
 from sklearn.datasets import make_regression
 from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import StandardScaler
+ 
 from autohpsearch.search.hptuing import tune_hyperparameters, generate_hypergrid
+from autohpsearch.vis.evaluation_plots import regression_prediction_plot, regression_residual_plot
 
 # %% generate data
 
@@ -25,7 +26,7 @@ results = tune_hyperparameters(
     hypergrid=hypergrid, 
     scoring='neg_root_mean_squared_error',
     cv=5,
-    task_type='regression'
+    task_type='regression',
 )
 
 # Access best model and results
@@ -36,3 +37,8 @@ performance_results = results['results']
 print(f"Best model: {type(best_model).__name__}")
 print(f"Optimal parameters: {optimal_params}")
 print(f"Results summary:\n{performance_results}")
+
+# %% evaluate model performance
+
+regression_prediction_plot(y_test, best_model.predict(X_test))
+regression_residual_plot(y_test, best_model.predict(X_test))

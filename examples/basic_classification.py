@@ -4,7 +4,9 @@
 from sklearn.datasets import make_classification
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
+
 from autohpsearch.search.hptuing import tune_hyperparameters, generate_hypergrid
+from autohpsearch.vis.evaluation_plots import plot_confusion_matrix, plot_ROC_curve
 
 # %% generate data
 
@@ -30,7 +32,7 @@ results = tune_hyperparameters(
     X_test_scaled, y_test, 
     hypergrid=hypergrid, 
     scoring='balanced_accuracy',
-    cv=5
+    cv=5,
 )
 
 # Access best model and results
@@ -41,3 +43,8 @@ performance_results = results['results']
 print(f"Best model: {type(best_model).__name__}")
 print(f"Optimal parameters: {optimal_params}")
 print(f"Results summary:\n{performance_results}")
+
+# %% evaluate model performance
+
+plot_confusion_matrix(y_test, best_model.predict(X_test_scaled), labels=[0, 1])
+plot_ROC_curve(y_test, best_model.predict_proba(X_test_scaled), labels=[0, 1])
