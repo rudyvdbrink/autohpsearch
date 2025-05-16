@@ -1,9 +1,9 @@
 
 # AutoHPSearch
 
-A Python package for automatic hyperparameter tuning of machine learning models for cross-sectional data.
+A Python package for automatic hyperparameter tuning of machine learning models for cross-sectional data. AutoHPSearch simplifies the process of hyperparameter optimization for various machine learning models by providing a unified interface to tune hyperparameters across multiple model types.
 
-AutoHPSearch simplifies the process of hyperparameter optimization for various machine learning models by providing a unified interface to tune hyperparameters across multiple model types.
+The search space is navigated with either grid or random search. The latter is faster but provides a less comprehensive coverage of the search space. CUDA-enabled computing for neural network implementations is included.
 
 ## Installation
 
@@ -19,20 +19,22 @@ cd autohpsearch
 pip install -e .
 ```
 
+To enable CUDA you need to manually install the right version of torch+cuda depending on your GPU and system.
+
 ## Usage
 
 ### Examples Scripts
 - [Classification](https://github.com/rudyvdbrink/autohpsearch/blob/main/examples/classification_basic.ipynb) - Demonstrates simple binary classification
 - [Regression](https://github.com/rudyvdbrink/autohpsearch/blob/main/examples/regression_basic.ipynb) - Simple regression example
-- [Neural Network Usage](https://github.com/rudyvdbrink/autohpsearch/blob/main/examples/nn_usage.py) - Syntax for using scikit-learn compatible neural networks
+- [Neural Network Usage](https://github.com/rudyvdbrink/autohpsearch/blob/main/examples/nn_usage.py) - Syntax examples for using scikit-learn compatible neural networks
+- [Iris example](https://github.com/rudyvdbrink/autohpsearch/blob/main/examples/iris_example.py) - Examples of both classification and regression solving using real data
 
 ### Basic Example
 
 ```python
-import numpy as np
 from sklearn.datasets import make_classification
 from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import StandardScaler
+
 from autohpsearch.search.hptuing import tune_hyperparameters, generate_hypergrid
 
 # Generate synthetic data
@@ -41,20 +43,16 @@ X, y = make_classification(n_samples=1000, n_features=10, random_state=42)
 # Split data
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
-# Scale features
-scaler = StandardScaler()
-X_train_scaled = scaler.fit_transform(X_train)
-X_test_scaled = scaler.transform(X_test)
-
 # Generate hyperparameter grid for multiple models
-hypergrid = generate_hypergrid(['logistic_regression', 'random_forest', 'xgboost'])
+hypergrid = generate_hypergrid(['logistic_regression', 'random_forest_clf', 'xgboost_clf'])
 
 # Tune hyperparameters
 results = tune_hyperparameters(
-    X_train_scaled, y_train, 
-    X_test_scaled, y_test, 
+    X_train, y_train, 
+    X_test, y_test, 
     hypergrid=hypergrid, 
     scoring='balanced_accuracy',
+    search_type='random',
     cv=5
 )
 
@@ -139,8 +137,6 @@ AutoHPSearch includes custom neural network implementations that are compatible 
 - `AutoHPSearchRegressor`: For regression tasks
 
 These models provide flexibility in architecture design and training configuration while maintaining the familiar scikit-learn API.
-
-CUDA-enabled computing is implemented, though require you to install the right version of torch+cuda depending on your GPU.
 
 ## Author
 
