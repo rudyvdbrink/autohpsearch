@@ -1,3 +1,5 @@
+# %% import libraries
+
 import pandas as pd
 import time
 
@@ -15,10 +17,10 @@ from sklearn.metrics import (make_scorer,
 
 import numpy as np
 import pandas as pd
-from tqdm import tqdm
 
 from autohpsearch.search.grids import get_grid
 from autohpsearch.utils.context import hush
+from autohpsearch.search.reporting import measure_prediction_time, count_fits
 
 # %% functions for hypergrid searching
 
@@ -83,41 +85,6 @@ def generate_hypergrid(model_name=None, task_type='classification'):
     
     else:
         raise TypeError("model_name must be None, a string, or a list of strings")
-
-def measure_prediction_time(model, X, n_repeats=100):
-    """
-    Measure the average execution time for model prediction.
-    
-    Parameters:
-    -----------
-    model : estimator
-        The trained model to evaluate
-    X : array-like
-        Features to use for prediction
-    n_repeats : int, default=100
-        Number of times to repeat the prediction for more reliable timing
-    
-    Returns:
-    --------
-    float
-        Average prediction time in milliseconds per sample
-    """
-    # Take a single sample for individual prediction timing
-    single_sample = X[0:1]
-    
-    # Warm up the prediction (first prediction can be slower)
-    model.predict(single_sample)
-    
-    # Measure time for single sample prediction
-    start_time = time.time()
-    for _ in range(n_repeats):
-        model.predict(single_sample)
-    end_time = time.time()
-    
-    # Calculate average time per prediction in milliseconds
-    avg_time_ms = ((end_time - start_time) / n_repeats) * 1000
-    
-    return avg_time_ms
 
 def tune_hyperparameters(X_train, y_train, X_test, y_test, hypergrid=None, scoring=None, cv=5, 
                         task_type='classification', search_type='grid', n_iter=10, verbose=False):
@@ -221,6 +188,10 @@ def tune_hyperparameters(X_train, y_train, X_test, y_test, hypergrid=None, scori
     # Otherwise, assume hypergrid is already a list of model configs
     else:
         hypergrid = hypergrid
+
+    # Report the number of fits
+    total_fits = count_fits(hypergrid, search_type=search_type, cv=cv, n_iter=n_iter)
+    print(f"Total number of fits to be performed: {total_fits}")
     
     # Initialize dictionaries to store results
     best_models = {}
