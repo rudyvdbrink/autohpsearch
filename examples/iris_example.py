@@ -12,7 +12,8 @@ from autohpsearch.vis.evaluation_plots import (
     regression_prediction_plot,
     regression_residual_plot,
     plot_confusion_matrix,
-    plot_ROC_curve
+    plot_ROC_curve,
+    bar_plot_results_df
 )
 
 # %% Load and prepare data
@@ -71,6 +72,9 @@ plot_confusion_matrix(y_test, y_clf_pred, labels=range(len(target_names)))
 # Plot ROC curve
 plot_ROC_curve(y_test, y_clf_proba, labels=target_names)
 
+# Plot some timeing information
+bar_plot_results_df(clf_results['results'], 'prediction_time_ms')
+
 
 # %% Regression example
 
@@ -110,7 +114,6 @@ reg_results = tune_hyperparameters(
 
 # Get the best regression model
 best_reg = reg_results['best_model']
-best_reg_model_key = reg_results['results'].index[0] if not reg_results['results'].empty else None
 
 # Make predictions with the best model
 y_reg_pred = best_reg.predict(X_reg_test_scaled)

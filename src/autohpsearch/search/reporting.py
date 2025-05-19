@@ -4,7 +4,7 @@ import time
 
 # %% functions
 
-def measure_training_time(model, X):
+def measure_training_time(model, X, y):
     """
     Measure the execution time for model training.
     
@@ -22,7 +22,7 @@ def measure_training_time(model, X):
     """   
     # Measure time for training
     start_time = time.time()
-    model.fit(X, None)
+    model.fit(X, y)
     end_time = time.time()
     
     # Calculate time in milliseconds
@@ -121,3 +121,5 @@ def count_fits(hypergrid, search_type='grid', cv=5, n_iter=10):
         total_fits += model_fits
         
     return total_fits
+
+    

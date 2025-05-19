@@ -20,7 +20,9 @@ import pandas as pd
 
 from autohpsearch.search.grids import get_grid
 from autohpsearch.utils.context import hush
-from autohpsearch.search.reporting import measure_prediction_time, count_fits
+from autohpsearch.search.reporting import (measure_training_time,
+                                           measure_prediction_time, 
+                                           count_fits)
 
 # %% functions for hypergrid searching
 
@@ -249,6 +251,9 @@ def tune_hyperparameters(X_train, y_train, X_test, y_test, hypergrid=None, scori
             # Evaluate on test set based on task type
             y_pred = best_model.predict(X_test)
 
+            # Measure training time
+            train_time_ms = measure_training_time(best_model, X_train, y_train)
+
             # Measure prediction time
             pred_time_ms = measure_prediction_time(best_model, X_test)
             
@@ -307,6 +312,7 @@ def tune_hyperparameters(X_train, y_train, X_test, y_test, hypergrid=None, scori
             best_scores[model_name] = {
                 'cv_score': search.best_score_,
                 'test_score': test_score,
+                'train_time_ms': train_time_ms,
                 'prediction_time_ms': pred_time_ms,
             }
             

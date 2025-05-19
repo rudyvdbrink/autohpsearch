@@ -149,3 +149,37 @@ def regression_residual_plot(y_true, y_score):
     plt.title('Residual Plot')
     plt.show()
 
+# %% reporting on parameter tuning
+
+def bar_plot_results_df(df, column_name):
+    """
+    Plots a bar plot for a given column in the dataframe, sorted in descending order.
+    
+    Parameters:
+        df (pd.DataFrame): The input dataframe.
+        column_name (str): The column to plot.
+    
+    Returns:
+        ax: The axis handle of the plot.
+    """
+    # Sort the dataframe by the specified column in descending order
+    sorted_df = df.sort_values(by=column_name, ascending=False)
+    
+    # Create the bar plot
+    fig, ax = plt.subplots(figsize=(6, 4))
+    ax.bar(sorted_df.index, sorted_df[column_name], color='skyblue', edgecolor='none')
+    
+    # Customize the x-axis labels: replace underscores with spaces and remove _clf/_reg extensions
+    formatted_labels = [label.replace('_clf', '').replace('_reg', '').replace('_', ' ').replace('logisticression', 'logistic regression') for label in sorted_df.index]
+    ax.set_xticklabels(formatted_labels, rotation=45, ha='right')
+    
+    # Customize the y-axis label: replace underscores with spaces
+    ax.set_ylabel(column_name.replace('_', ' '))
+    
+    # Remove the top and right spines
+    ax.spines['top'].set_visible(False)
+    ax.spines['right'].set_visible(False)
+    
+    # Return the axis handle
+    return ax
+# %%
