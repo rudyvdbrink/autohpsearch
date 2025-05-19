@@ -4,6 +4,32 @@ import time
 
 # %% functions
 
+def measure_training_time(model, X):
+    """
+    Measure the execution time for model training.
+    
+    Parameters:
+    -----------
+    model : estimator
+        The trained model to evaluate
+    X : array-like
+        Features to use for training
+    
+    Returns:
+    --------
+    float
+        Training time in milliseconds
+    """   
+    # Measure time for training
+    start_time = time.time()
+    model.fit(X, None)
+    end_time = time.time()
+    
+    # Calculate time in milliseconds
+    training_time_ms = (end_time - start_time) * 1000
+    
+    return training_time_ms
+
 def measure_prediction_time(model, X, n_repeats=100):
     """
     Measure the average execution time for model prediction.
