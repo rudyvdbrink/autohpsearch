@@ -110,12 +110,12 @@ def count_fits(hypergrid, search_type='grid', cv=5, n_iter=10):
             model_fits = n_combinations * cv
             
         # For random search, use n_iter parameter
-        elif search_type == 'random':
+        elif search_type == 'random' or search_type == 'bayesian':
             # For random search, n_iter parameter combinations are tested
             model_fits = n_iter * cv
             
         else:
-            raise ValueError(f"Invalid search_type: {search_type}. Must be 'grid' or 'random'.")
+            raise ValueError(f"Invalid search_type: {search_type}. Must be 'grid', 'random' or 'bayesian'.")
             
         # Add this model's fits to the total
         total_fits += model_fits

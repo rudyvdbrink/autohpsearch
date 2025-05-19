@@ -3,7 +3,7 @@
 
 A Python package for automatic hyperparameter tuning of machine learning models for cross-sectional data. AutoHPSearch simplifies the process of hyperparameter optimization for various machine learning models by providing a unified interface to tune hyperparameters across multiple model types.
 
-The search space is navigated with either grid or random search. The latter is faster but provides a less comprehensive coverage of the search space. CUDA-enabled computing for neural network implementations is included.
+The search space is navigated with grid, random, or bayesian search. Random search is faster but provides a less comprehensive coverage of the search space. CUDA-enabled computing for neural network implementations is included.
 
 ## Installation
 

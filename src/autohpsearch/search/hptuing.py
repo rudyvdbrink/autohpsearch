@@ -1,7 +1,6 @@
 # %% import libraries
 
 import pandas as pd
-import time
 
 from sklearn.model_selection import GridSearchCV, RandomizedSearchCV
 from sklearn.metrics import (make_scorer, 
@@ -14,6 +13,8 @@ from sklearn.metrics import (make_scorer,
                              recall_score,
                              f1_score,
                              roc_auc_score)
+
+from skopt import BayesSearchCV
 
 import numpy as np
 import pandas as pd
@@ -134,9 +135,9 @@ def tune_hyperparameters(X_train, y_train, X_test, y_test, hypergrid=None, scori
         Options: 'classification' or 'regression'
     search_type : str, default='grid'
         Type of hyperparameter search to perform.
-        Options: 'grid' for grid search, 'random' for random search
+        Options: 'grid' for grid search, 'random' for random search, 'bayesian' for Bayesian optimization.
     n_iter : int, default=10
-        Number of parameter settings sampled when search_type='random'
+        Number of parameter settings sampled when search_type='random' or search_type='bayesian'.
     verbose : bool, default=False
         Whether to display verbose output during fitting and evaluation.
         If True, extended output from scikit-learn will be shown.
@@ -227,7 +228,7 @@ def tune_hyperparameters(X_train, y_train, X_test, y_test, hypergrid=None, scori
                     n_jobs=-1,
                     verbose=1
                 )
-            else:  # search_type == 'random'
+            elif search_type == 'random':
                 search = RandomizedSearchCV(
                     estimator=model,
                     param_distributions=param_grid,
@@ -237,6 +238,18 @@ def tune_hyperparameters(X_train, y_train, X_test, y_test, hypergrid=None, scori
                     n_jobs=-1,
                     verbose=1
                 )
+            elif search_type == 'bayesian':
+                search = BayesSearchCV(
+                estimator=model,
+                search_spaces=param_grid,
+                n_iter=n_iter,
+                cv=cv,
+                scoring=scoring,
+                n_jobs=-1,
+                verbose=1
+                )
+            else:
+                raise ValueError(f"Invalid search_type: {search_type}. Must be 'grid', 'random', or 'bayesian'.")
                 
             # Fit the search
             if verbose:
@@ -257,7 +270,7 @@ def tune_hyperparameters(X_train, y_train, X_test, y_test, hypergrid=None, scori
             # Measure prediction time
             pred_time_ms = measure_prediction_time(best_model, X_test)
             
-            # First determine which metric to use for evaluation
+            # Get evaluation metric
             if task_type == 'classification':
                 # Default to balanced accuracy for test evaluation
                 if scoring == 'accuracy' or scoring == classification_metrics['accuracy']:
