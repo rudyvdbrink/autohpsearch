@@ -2,6 +2,7 @@
 
 import pandas as pd
 
+from skopt import BayesSearchCV
 from sklearn.model_selection import GridSearchCV, RandomizedSearchCV
 from sklearn.metrics import (make_scorer, 
                              balanced_accuracy_score, 
@@ -13,8 +14,6 @@ from sklearn.metrics import (make_scorer,
                              recall_score,
                              f1_score,
                              roc_auc_score)
-
-from skopt import BayesSearchCV
 
 import numpy as np
 import pandas as pd
