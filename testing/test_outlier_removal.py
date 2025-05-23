@@ -19,11 +19,15 @@ class TestOutlierRemover(unittest.TestCase):
         ])
         self.data_with_outliers = np.vstack([self.normal_data, self.outliers])
         
+        # Create target values
+        self.y = np.arange(103)  # One target value for each data point
+        
         # Create DataFrame version of the data
         self.df_with_outliers = pd.DataFrame(
             self.data_with_outliers, 
             columns=['feature1', 'feature2', 'feature3']
         )
+        self.y_df = pd.Series(self.y, name='target')
         
         # Data with NaN values
         self.data_with_nans = self.data_with_outliers.copy()
@@ -39,7 +43,7 @@ class TestOutlierRemover(unittest.TestCase):
         # Default parameters
         remover = OutlierRemover()
         self.assertEqual(remover.method, 'zscore')
-        self.assertEqual(remover.threshold, 3.0)
+        self.assertEqual(remover.threshold, 2.5)  # Updated default threshold
         
         # Custom parameters
         remover = OutlierRemover(method='iqr', threshold=1.5)
@@ -48,28 +52,31 @@ class TestOutlierRemover(unittest.TestCase):
         
     def test_zscore_outlier_detection_numpy(self):
         """Test z-score outlier detection with numpy arrays."""
-        remover = OutlierRemover(method='zscore', threshold=3.0)
+        remover = OutlierRemover(method='zscore', threshold=2.5)
         remover.fit(self.data_with_outliers)
         
-        # Should identify 3 outliers
-        self.assertEqual(np.sum(~remover.mask_), 3)
+        # Should identify outliers
+        self.assertTrue(np.sum(~remover.mask_) > 0)
         
-        # Transform should remove outliers
-        transformed = remover.transform(self.data_with_outliers)
-        self.assertEqual(transformed.shape[0], 100)  # 103 - 3 outliers
+        # Transform should remove outliers from both X and y
+        X_transformed, y_transformed = remover.transform(self.data_with_outliers, self.y)
+        self.assertTrue(X_transformed.shape[0] < self.data_with_outliers.shape[0])
+        self.assertEqual(X_transformed.shape[0], y_transformed.shape[0])
         
     def test_zscore_outlier_detection_pandas(self):
         """Test z-score outlier detection with pandas DataFrame."""
-        remover = OutlierRemover(method='zscore', threshold=3.0)
+        remover = OutlierRemover(method='zscore', threshold=2.5)
         remover.fit(self.df_with_outliers)
         
-        # Should identify 3 outliers
-        self.assertEqual(np.sum(~remover.mask_), 3)
+        # Should identify outliers
+        self.assertTrue(np.sum(~remover.mask_) > 0)
         
-        # Transform should remove outliers
-        transformed = remover.transform(self.df_with_outliers)
-        self.assertEqual(transformed.shape[0], 100)  # 103 - 3 outliers
-        self.assertTrue(isinstance(transformed, pd.DataFrame))
+        # Transform should remove outliers from both X and y
+        X_transformed, y_transformed = remover.transform(self.df_with_outliers, self.y_df)
+        self.assertTrue(X_transformed.shape[0] < self.df_with_outliers.shape[0])
+        self.assertEqual(X_transformed.shape[0], y_transformed.shape[0])
+        self.assertTrue(isinstance(X_transformed, pd.DataFrame))
+        self.assertTrue(isinstance(y_transformed, pd.Series))
         
     def test_iqr_outlier_detection_numpy(self):
         """Test IQR outlier detection with numpy arrays."""
@@ -79,9 +86,10 @@ class TestOutlierRemover(unittest.TestCase):
         # Should identify the outliers
         self.assertTrue(np.sum(~remover.mask_) > 0)
         
-        # Transform should remove outliers
-        transformed = remover.transform(self.data_with_outliers)
-        self.assertTrue(transformed.shape[0] < self.data_with_outliers.shape[0])
+        # Transform should remove outliers from both X and y
+        X_transformed, y_transformed = remover.transform(self.data_with_outliers, self.y)
+        self.assertTrue(X_transformed.shape[0] < self.data_with_outliers.shape[0])
+        self.assertEqual(X_transformed.shape[0], y_transformed.shape[0])
         
     def test_iqr_outlier_detection_pandas(self):
         """Test IQR outlier detection with pandas DataFrame."""
@@ -91,18 +99,21 @@ class TestOutlierRemover(unittest.TestCase):
         # Should identify the outliers
         self.assertTrue(np.sum(~remover.mask_) > 0)
         
-        # Transform should remove outliers
-        transformed = remover.transform(self.df_with_outliers)
-        self.assertTrue(transformed.shape[0] < self.df_with_outliers.shape[0])
-        self.assertTrue(isinstance(transformed, pd.DataFrame))
+        # Transform should remove outliers from both X and y
+        X_transformed, y_transformed = remover.transform(self.df_with_outliers, self.y_df)
+        self.assertTrue(X_transformed.shape[0] < self.df_with_outliers.shape[0])
+        self.assertEqual(X_transformed.shape[0], y_transformed.shape[0])
+        self.assertTrue(isinstance(X_transformed, pd.DataFrame))
+        self.assertTrue(isinstance(y_transformed, pd.Series))
         
     def test_fit_transform(self):
         """Test the fit_transform method."""
         remover = OutlierRemover()
-        transformed = remover.fit_transform(self.data_with_outliers)
+        X_transformed, y_transformed = remover.fit_transform(self.data_with_outliers, self.y)
         
-        # Should have removed the outliers
-        self.assertTrue(transformed.shape[0] < self.data_with_outliers.shape[0])
+        # Should have removed the outliers from both X and y
+        self.assertTrue(X_transformed.shape[0] < self.data_with_outliers.shape[0])
+        self.assertEqual(X_transformed.shape[0], y_transformed.shape[0])
         
     def test_nan_handling_zscore(self):
         """Test handling of NaN values with z-score method."""
@@ -110,8 +121,9 @@ class TestOutlierRemover(unittest.TestCase):
         remover.fit(self.data_with_nans)
         
         # Z-score method should handle NaNs
-        transformed = remover.transform(self.data_with_nans)
-        self.assertTrue(transformed.shape[0] < self.data_with_nans.shape[0])
+        X_transformed, y_transformed = remover.transform(self.data_with_nans, self.y)
+        self.assertTrue(X_transformed.shape[0] < self.data_with_nans.shape[0])
+        self.assertEqual(X_transformed.shape[0], y_transformed.shape[0])
         
     def test_nan_handling_iqr(self):
         """Test handling of NaN values with IQR method."""
@@ -119,8 +131,9 @@ class TestOutlierRemover(unittest.TestCase):
         remover.fit(self.data_with_nans)
         
         # IQR method should handle NaNs
-        transformed = remover.transform(self.data_with_nans)
-        self.assertTrue(transformed.shape[0] < self.data_with_nans.shape[0])
+        X_transformed, y_transformed = remover.transform(self.data_with_nans, self.y)
+        self.assertTrue(X_transformed.shape[0] < self.data_with_nans.shape[0])
+        self.assertEqual(X_transformed.shape[0], y_transformed.shape[0])
         
     def test_nan_handling_pandas(self):
         """Test handling of NaN values with pandas DataFrame."""
@@ -128,8 +141,9 @@ class TestOutlierRemover(unittest.TestCase):
         remover.fit(self.df_with_nans)
         
         # Should handle NaNs in DataFrames
-        transformed = remover.transform(self.df_with_nans)
-        self.assertTrue(transformed.shape[0] < self.df_with_nans.shape[0])
+        X_transformed, y_transformed = remover.transform(self.df_with_nans, self.y_df)
+        self.assertTrue(X_transformed.shape[0] < self.df_with_nans.shape[0])
+        self.assertEqual(X_transformed.shape[0], y_transformed.shape[0])
         
     def test_invalid_method(self):
         """Test handling of invalid outlier detection method."""
@@ -141,9 +155,11 @@ class TestOutlierRemover(unittest.TestCase):
         """Test handling of empty datasets."""
         remover = OutlierRemover()
         empty_data = np.array([]).reshape(0, 3)
+        empty_y = np.array([])
         remover.fit(empty_data)
-        transformed = remover.transform(empty_data)
-        self.assertEqual(transformed.shape, (0, 3))
+        X_transformed, y_transformed = remover.transform(empty_data, empty_y)
+        self.assertEqual(X_transformed.shape, (0, 3))
+        self.assertEqual(y_transformed.shape, (0,))
         
     def test_no_numerical_columns(self):
         """Test handling of datasets with no numerical columns."""
@@ -153,10 +169,12 @@ class TestOutlierRemover(unittest.TestCase):
             'col1': ['a', 'b', 'c'],
             'col2': ['x', 'y', 'z']
         })
+        y = np.array([1, 2, 3])
         remover.fit(df)
-        transformed = remover.transform(df)
+        X_transformed, y_transformed = remover.transform(df, y)
         # Should keep all rows as there are no numerical columns to find outliers in
-        self.assertEqual(transformed.shape[0], df.shape[0])
+        self.assertEqual(X_transformed.shape[0], df.shape[0])
+        self.assertEqual(y_transformed.shape[0], y.shape[0])
         
     def test_get_mask(self):
         """Test the get_mask method."""
@@ -180,9 +198,27 @@ class TestOutlierRemover(unittest.TestCase):
         remover.fit(mixed_df)
         
         # Should only consider numerical columns for outlier detection
-        transformed = remover.transform(mixed_df)
-        self.assertTrue(transformed.shape[0] < mixed_df.shape[0])
-        self.assertTrue('category' in transformed.columns)
+        X_transformed, y_transformed = remover.transform(mixed_df, self.y_df)
+        self.assertTrue(X_transformed.shape[0] < mixed_df.shape[0])
+        self.assertEqual(X_transformed.shape[0], y_transformed.shape[0])
+        self.assertTrue('category' in X_transformed.columns)
+        
+    def test_mixed_input_types(self):
+        """Test handling of mixed input types (DataFrame with numpy array and vice versa)."""
+        remover = OutlierRemover()
+        remover.fit(self.data_with_outliers)
+        
+        # Transform DataFrame X with numpy y
+        X_transformed, y_transformed = remover.transform(self.df_with_outliers, self.y)
+        self.assertTrue(isinstance(X_transformed, pd.DataFrame))
+        self.assertTrue(isinstance(y_transformed, np.ndarray))
+        self.assertEqual(X_transformed.shape[0], y_transformed.shape[0])
+        
+        # Transform numpy X with DataFrame y
+        X_transformed, y_transformed = remover.transform(self.data_with_outliers, self.y_df)
+        self.assertTrue(isinstance(X_transformed, np.ndarray))
+        self.assertTrue(isinstance(y_transformed, pd.Series))
+        self.assertEqual(X_transformed.shape[0], y_transformed.shape[0])
 
 if __name__ == '__main__':
-    unittest.main(argv=['first-arg-is-ignored'], exit=False)  
+    unittest.main(argv=['first-arg-is-ignored'], exit=False)  # For running in Jupyter

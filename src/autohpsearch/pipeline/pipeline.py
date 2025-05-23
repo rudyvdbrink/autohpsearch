@@ -17,7 +17,7 @@ from autohpsearch.search.hptuing import tune_hyperparameters, generate_hypergrid
 class OutlierRemover(BaseEstimator, TransformerMixin):
     """Class for detecting and removing outliers from data."""
     
-    def __init__(self, method: str = 'zscore', threshold: float = 3.0):
+    def __init__(self, method: str = 'zscore', threshold: float = 2.5):
         """
         Initialize the outlier remover.
         
@@ -27,7 +27,7 @@ class OutlierRemover(BaseEstimator, TransformerMixin):
             Method to use for outlier detection. Options:
             - 'zscore': Remove samples with features having Z-scores above threshold
             - 'iqr': Remove samples with features outside IQR * threshold
-        threshold : float, optional (default=3.0)
+        threshold : float, optional (default=2.5)
             Threshold for outlier detection
         """
         self.method = method
@@ -44,7 +44,7 @@ class OutlierRemover(BaseEstimator, TransformerMixin):
             # For numpy arrays, assume all columns are numeric
             return list(range(X.shape[1]))
     
-    def fit(self, X, y=None):
+    def fit(self, X):
         """
         Identify outliers in the data.
         
@@ -52,8 +52,6 @@ class OutlierRemover(BaseEstimator, TransformerMixin):
         ----------
         X : array-like of shape (n_samples, n_features)
             Training data
-        y : array-like of shape (n_samples,), optional (default=None)
-            Target values
             
         Returns
         -------
@@ -129,7 +127,7 @@ class OutlierRemover(BaseEstimator, TransformerMixin):
         
         return self
     
-    def transform(self, X, y=None):
+    def transform(self, X, y):
         """
         Remove outliers from the data.
         
@@ -137,7 +135,7 @@ class OutlierRemover(BaseEstimator, TransformerMixin):
         ----------
         X : array-like of shape (n_samples, n_features)
             Input data
-        y : array-like of shape (n_samples,), optional (default=None)
+        y : array-like of shape (n_samples,)
             Target values
             
         Returns
@@ -146,14 +144,18 @@ class OutlierRemover(BaseEstimator, TransformerMixin):
             Data with outliers removed
         """
         if self.mask_ is None:
-            return X
+            return X, y
         
-        if hasattr(X, 'iloc'):
-            return X.iloc[self.mask_]
+        if hasattr(X, 'iloc') and hasattr(y, 'iloc'):
+            return X.iloc[self.mask_], y.iloc[self.mask_]
+        elif hasattr(X, 'iloc') and not hasattr(y, 'iloc'):
+            return X.iloc[self.mask_], y[self.mask_]
+        elif not hasattr(X, 'iloc') and hasattr(y, 'iloc'):
+            return X[self.mask_], y.iloc[self.mask_]
         else:
-            return X[self.mask_]
+            return X[self.mask_], y[self.mask_]
     
-    def fit_transform(self, X, y=None):
+    def fit_transform(self, X, y):
         """
         Fit to data, then transform it.
         
@@ -161,15 +163,16 @@ class OutlierRemover(BaseEstimator, TransformerMixin):
         ----------
         X : array-like of shape (n_samples, n_features)
             Training data
-        y : array-like of shape (n_samples,), optional (default=None)
+        y : array-like of shape (n_samples,)
             Target values
             
         Returns
         -------
         X_transformed : array-like of shape (n_samples_new, n_features)
             Data with outliers removed
+        y_transformed : array-like of shape (n_samples_new,)
         """
-        return self.fit(X, y).transform(X, y)
+        return self.fit(X).transform(X, y)
     
     def get_mask(self):
         """Return the mask of non-outlier samples."""
@@ -330,7 +333,7 @@ class AutoMLPipeline:
             Whether to remove outliers from training data
         outlier_method : str, optional (default='zscore')
             Method for outlier detection: 'zscore' or 'iqr'
-        outlier_threshold : float, optional (default=3.0)
+        outlier_threshold : float, optional (default=2.5)
             Threshold for outlier detection
         num_imputation_strategy : str, optional (default='mean')
             Strategy for imputing missing values in numerical features:
@@ -528,20 +531,20 @@ class AutoMLPipeline:
             )
             
             # Keep the original data for reference
-            X_train_original = X_train.copy() if hasattr(X_train, 'copy') else X_train.copy()
+            # X_train_original = X_train.copy() if hasattr(X_train, 'copy') else X_train.copy()
             y_train_original = y_train.copy() if hasattr(y_train, 'copy') else y_train.copy()
             
             # Fit and transform on training data only
             self.outlier_remover_.fit(X_train)
-            X_train = self.outlier_remover_.transform(X_train)
+            X_train, y_train = self.outlier_remover_.transform(X_train, y_train)
             
             # Get the mask to apply to y_train
-            self.outlier_mask_ = self.outlier_remover_.get_mask()
+            #self.outlier_mask_ = self.outlier_remover_.get_mask()
             
-            if hasattr(y_train, 'iloc'):
-                y_train = y_train.iloc[self.outlier_mask_]
-            else:
-                y_train = y_train[self.outlier_mask_]
+            # if hasattr(y_train, 'iloc'):
+            #     y_train = y_train.iloc[self.outlier_mask_]
+            # else:
+            #     y_train = y_train[self.outlier_mask_]
             
             if self.verbose:
                 n_removed = len(y_train_original) - len(y_train)
