@@ -78,8 +78,8 @@ class OutlierRemover(BaseEstimator, TransformerMixin):
         if np.isnan(X_array).any():
             # Create a mask for non-NaN values
             non_nan_mask = ~np.any(np.isnan(X_array), axis=1)
-            # Initialize mask with all False
-            self.mask_ = np.zeros(len(X), dtype=bool)
+            # Initialize mask with all True (i.e. keep all rows)
+            self.mask_ = np.ones(len(X), dtype=bool)
             
             # Only calculate outliers for non-NaN rows
             if self.method == 'zscore':
@@ -530,25 +530,16 @@ class AutoMLPipeline:
                 threshold=self.outlier_threshold
             )
             
-            # Keep the original data for reference
-            # X_train_original = X_train.copy() if hasattr(X_train, 'copy') else X_train.copy()
-            y_train_original = y_train.copy() if hasattr(y_train, 'copy') else y_train.copy()
+            # Get N for reference
+            y_train_len = len(y_train)
             
             # Fit and transform on training data only
             self.outlier_remover_.fit(X_train)
             X_train, y_train = self.outlier_remover_.transform(X_train, y_train)
             
-            # Get the mask to apply to y_train
-            #self.outlier_mask_ = self.outlier_remover_.get_mask()
-            
-            # if hasattr(y_train, 'iloc'):
-            #     y_train = y_train.iloc[self.outlier_mask_]
-            # else:
-            #     y_train = y_train[self.outlier_mask_]
-            
             if self.verbose:
-                n_removed = len(y_train_original) - len(y_train)
-                print(f"Removed {n_removed} outliers ({n_removed/len(y_train_original)*100:.1f}% of training data)")
+                n_removed = y_train_len - len(y_train)
+                print(f"Removed {n_removed} outliers ({n_removed/y_train_len*100:.1f}% of training data)")
         
         # Step 2: Create preprocessor for missing value imputation, encoding, and scaling
         if self.verbose:
