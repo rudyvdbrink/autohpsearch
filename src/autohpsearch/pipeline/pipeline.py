@@ -769,6 +769,188 @@ class AutoMLPipeline:
             score = get_scorer(self.scoring)(self.best_model_, X_transformed, y)
         
         return score
+    
+    def save(self, directory=None, filename=None):
+        """
+        Save the fitted pipeline to a file with automatic versioning.
+        
+        Parameters
+        ----------
+        directory : str, optional (default=None)
+            Directory where the model will be saved. If None, uses './models'
+            in a platform-compatible way.
+        filename : str, optional (default=None)
+            Base filename for the saved model. If None, a default name will be used.
+            The final filename will include a version number.
+            
+        Returns
+        -------
+        str
+            Path to the saved model file
+        
+        Notes
+        -----
+        This method requires the pipeline to be fitted first.
+        The saved file includes the entire pipeline with preprocessing components and model.
+        """
+        import os
+        import joblib
+        import datetime
+        import re
+        
+        if self.best_model_ is None:
+            raise ValueError("Model has not been fitted. Call 'fit' first.")
+        
+        # Use a platform-compatible default directory
+        if directory is None:
+            directory = os.path.join('.', 'models')
+        
+        # Create directory if it doesn't exist
+        os.makedirs(directory, exist_ok=True)
+        
+        # Generate default filename if not provided
+        if filename is None:
+            model_type = type(self.best_model_).__name__
+            task_suffix = "clf" if self.task_type == "classification" else "reg"
+            timestamp = datetime.datetime.now().strftime("%Y%m%d")
+            filename = f"automl_{task_suffix}_{model_type}_{timestamp}"
+        
+        # Check existing files to determine version number
+        pattern = re.compile(f"{re.escape(filename)}_v(\\d+)\\.joblib$")
+        version = 1
+        
+        if os.path.exists(directory):
+            for f in os.listdir(directory):
+                match = pattern.match(f)
+                if match:
+                    v = int(match.group(1))
+                    version = max(version, v + 1)
+        
+        # Create final filename with version
+        final_filename = f"{filename}_v{version}.joblib"
+        file_path = os.path.join(directory, final_filename)
+        
+        # Get current datetime in UTC
+        current_time = datetime.datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
+        
+        # Create a dictionary with all important components
+        pipeline_dict = {
+            'preprocessor': self.preprocessor_,
+            'best_model': self.best_model_,
+            'target_transformer': self.target_transformer_,
+            'feature_names': self.feature_names_,
+            'task_type': self.task_type,
+            'numerical_features': self.numerical_features_,
+            'categorical_features': self.categorical_features_,
+            'scoring': self.scoring,
+            'outlier_remover': self.outlier_remover_ if self.remove_outliers else None,
+            'results': self.results_,  # Save hyperparameter search results
+            'metadata': {
+                'created_at': datetime.datetime.now().isoformat(),
+                'model_type': type(self.best_model_).__name__,
+                'version': version,
+                'model_params': self.best_model_.get_params(),
+                'scoring': self.scoring,
+                'saved_by': 'rudyvdbrink',  # Current user's login
+                'saved_at': current_time  # Current UTC date and time
+            }
+        }
+        
+        # Save the dictionary
+        joblib.dump(pipeline_dict, file_path)
+        
+        if self.verbose:
+            print(f"Pipeline saved to {file_path}")
+        
+        return file_path
+    
+    @classmethod
+    def load(cls, file_path=None, directory=None, verbose=True):
+        """
+        Load a saved pipeline from file. 
+        
+        If file_path is None, the most recently saved pipeline in the specified directory will be loaded.
+        
+        Parameters
+        ----------
+        file_path : str, optional (default=None)
+            Path to the saved model file. If None, the most recent file in the directory will be loaded.
+        directory : str, optional (default=None)
+            Directory to search for models when file_path is None. If None, uses './models'
+            in a platform-compatible way.
+        verbose : bool, optional (default=True)
+            Whether to print information about the loaded model
+            
+        Returns
+        -------
+        AutoMLPipeline
+            Loaded pipeline instance
+            
+        Raises
+        ------
+        FileNotFoundError
+            If file_path is not found or directory contains no model files
+        """
+        import joblib
+        import os
+        import glob
+        
+        # Use a platform-compatible default directory
+        if directory is None:
+            directory = os.path.join('.', 'models')
+        
+        if file_path is None:
+            # No specific file provided, find the most recent one in the directory
+            if not os.path.exists(directory):
+                raise FileNotFoundError(f"Directory not found: {directory}")
+            
+            # Look for .joblib files in the directory
+            model_files = glob.glob(os.path.join(directory, "*.joblib"))
+            
+            if not model_files:
+                raise FileNotFoundError(f"No model files found in directory: {directory}")
+            
+            # Get the most recently modified file
+            file_path = max(model_files, key=os.path.getmtime)
+            
+            if verbose:
+                print(f"Loading most recent model: {os.path.basename(file_path)}")
+        
+        if not os.path.exists(file_path):
+            raise FileNotFoundError(f"No file found at {file_path}")
+        
+        # Load the dictionary
+        pipeline_dict = joblib.load(file_path)
+        
+        # Create a new instance
+        pipeline = cls(
+            task_type=pipeline_dict['task_type'],
+            verbose=verbose
+        )
+        
+        # Restore components
+        pipeline.preprocessor_ = pipeline_dict['preprocessor']
+        pipeline.best_model_ = pipeline_dict['best_model']
+        pipeline.target_transformer_ = pipeline_dict['target_transformer']
+        pipeline.feature_names_ = pipeline_dict['feature_names']
+        pipeline.numerical_features_ = pipeline_dict['numerical_features']
+        pipeline.categorical_features_ = pipeline_dict['categorical_features']
+        pipeline.scoring = pipeline_dict['scoring']
+        pipeline.outlier_remover_ = pipeline_dict['outlier_remover']
+        pipeline.results_ = pipeline_dict.get('results')  # Restore hyperparameter search results if available
+        
+        if verbose:
+            print(f"Pipeline loaded from {file_path}")
+            print(f"Model type: {pipeline_dict['metadata']['model_type']}")
+            print(f"Created at: {pipeline_dict['metadata']['created_at']}")
+            print(f"Version: {pipeline_dict['metadata']['version']}")
+            
+            # Show who saved the model and when
+            if 'saved_by' in pipeline_dict['metadata']:
+                print(f"Saved by: {pipeline_dict['metadata']['saved_by']}")
+                print(f"Saved at: {pipeline_dict['metadata']['saved_at']}")
+        
+        return pipeline
 
 
 # Example usage:
