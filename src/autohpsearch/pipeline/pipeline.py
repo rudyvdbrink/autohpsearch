@@ -434,6 +434,49 @@ class AutoMLPipeline:
         
         return numeric_cols, categorical_cols
     
+    def _compute_cardinality(self, X):
+        """
+        Compute cardinality of categorical features and determine which features
+        should use one-hot encoding vs. ordinal encoding.
+        
+        Parameters
+        ----------
+        X : array-like or DataFrame
+            Input features to analyze for cardinality
+        
+        Returns
+        -------
+        self : object
+            Returns self with onehot_features_ and ordinal_features_ attributes set
+        """
+        if not self.categorical_features_:
+            self.onehot_features_ = []
+            self.ordinal_features_ = []
+            return self
+        
+        # Calculate cardinality for each categorical feature
+        cardinalities = {}
+        
+        if hasattr(X, 'iloc'):  # DataFrame
+            for col in self.categorical_features_:
+                cardinalities[col] = X[col].nunique()
+        else:  # numpy array
+            for i in self.categorical_features_:
+                cardinalities[i] = len(np.unique(X[:, i]))
+        
+        # Split features based on cardinality threshold
+        self.onehot_features_ = [feat for feat, card in cardinalities.items() 
+                            if card <= self.max_onehot_cardinality]
+        
+        self.ordinal_features_ = [feat for feat, card in cardinalities.items() 
+                                if card > self.max_onehot_cardinality]
+        
+        if self.verbose:
+            print(f"Using one-hot encoding for {len(self.onehot_features_)} categorical features")
+            print(f"Using ordinal encoding for {len(self.ordinal_features_)} categorical features")
+    
+        return self
+    
     def _create_preprocessor(self):
         """Create a preprocessing pipeline based on the settings."""
         transformers = []
@@ -464,24 +507,42 @@ class AutoMLPipeline:
         
         # Categorical feature preprocessing
         if self.categorical_features_:
-            cat_steps = []
-            
-            # Imputation for categorical features
-            cat_imputer = SimpleImputer(strategy=self.cat_imputation_strategy)
-            cat_steps.append(('imputer', cat_imputer))
-            
-            # Encoding for categorical features
+            # Handle different encoding methods for categorical features
             if self.cat_encoding_method == 'onehot':
-                cat_steps.append(('encoder', OneHotEncoder(handle_unknown='ignore', sparse_output=False)))
+                # Use one-hot encoding for all categorical features
+                cat_transformer = SklearnPipeline([
+                    ('imputer', SimpleImputer(strategy=self.cat_imputation_strategy)),
+                    ('encoder', OneHotEncoder(handle_unknown='ignore', sparse_output=False))
+                ])
+                transformers.append(('cat', cat_transformer, self.categorical_features_))
+                
             elif self.cat_encoding_method == 'ordinal':
-                cat_steps.append(('encoder', OrdinalEncoder(handle_unknown='use_encoded_value', unknown_value=-1)))
+                # Use ordinal encoding for all categorical features
+                cat_transformer = SklearnPipeline([
+                    ('imputer', SimpleImputer(strategy=self.cat_imputation_strategy)),
+                    ('encoder', OrdinalEncoder(handle_unknown='use_encoded_value', unknown_value=-1))
+                ])
+                transformers.append(('cat', cat_transformer, self.categorical_features_))
+                
             elif self.cat_encoding_method == 'auto':
-                # Auto encoding will be implemented later based on feature cardinality
-                cat_steps.append(('encoder', 'passthrough'))
-            
-            transformers.append((
-                'cat', SklearnPipeline(cat_steps), self.categorical_features_
-            ))
+                # Use mixed encoding based on feature cardinality (computed earlier)
+                cat_encoders = []
+                
+                # Handle one-hot encoded features
+                if self.onehot_features_:
+                    onehot_transformer = SklearnPipeline([
+                        ('imputer', SimpleImputer(strategy=self.cat_imputation_strategy)),
+                        ('encoder', OneHotEncoder(handle_unknown='ignore', sparse_output=False))
+                    ])
+                    transformers.append(('cat_onehot', onehot_transformer, self.onehot_features_))
+                
+                # Handle ordinal encoded features
+                if self.ordinal_features_:
+                    ordinal_transformer = SklearnPipeline([
+                        ('imputer', SimpleImputer(strategy=self.cat_imputation_strategy)),
+                        ('encoder', OrdinalEncoder(handle_unknown='use_encoded_value', unknown_value=-1))
+                    ])
+                    transformers.append(('cat_ordinal', ordinal_transformer, self.ordinal_features_))
         
         preprocessor = ColumnTransformer(
             transformers=transformers,
@@ -515,10 +576,14 @@ class AutoMLPipeline:
         
         # Store original feature names if available
         if hasattr(X_train, 'columns'):
-            self.feature_names_ = X_train.columns.tolist()
-        
+            self.feature_names_ = X_train.columns.tolist()                
+
         # Identify numerical and categorical features
         self.numerical_features_, self.categorical_features_ = self._identify_features(X_train)
+
+        # If we are using automatic categorical encoding, compute cardinality
+        if self.cat_encoding_method == 'auto':
+            self._compute_cardinality(X_train)
         
         # Step 1: Remove outliers (optional, only from training data)
         if self.remove_outliers:
@@ -552,7 +617,7 @@ class AutoMLPipeline:
             if self.verbose:
                 print(f"Applying {self.target_transform} transformation to target variable...")
             
-            self.target_transformer_ = TargetTransformer(transform=self.target_transform)
+            self.target_transformer_ = TargetTransformer(transform_method=self.target_transform)
             y_train = self.target_transformer_.fit_transform(y_train)
         
         # Step 4: Fit preprocessor on training data
