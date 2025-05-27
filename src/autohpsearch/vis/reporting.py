@@ -183,3 +183,211 @@ def plot_feature_grid(X: Union[np.ndarray, pd.DataFrame],
     
     # Return the figure
     return fig
+
+def plot_nans(X: Union[np.ndarray, pd.DataFrame],
+             figsize: tuple = (11, 9),
+             cmap: str = 'inferno',
+             title: str = 'Missing Values',
+             ax: Optional[plt.Axes] = None) -> plt.Axes:
+    """
+    Plot a heatmap of NaN values in the input data.
+    
+    Parameters
+    ----------
+    X : array-like or pandas DataFrame
+        The data matrix to visualize missing values from
+    figsize : tuple, default=(11, 9)
+        Figure size as (width, height) in inches
+    cmap : str, default='inferno'
+        Colormap to use for the heatmap
+    title : str, default='Missing Values'
+        Title for the plot
+    ax : matplotlib.axes.Axes, optional
+        Pre-existing axes to plot on. If not provided, creates a new figure and axes.
+        
+    Returns
+    -------
+    matplotlib.figure.Figure
+        The figure containing the plot
+    """
+    # Convert numpy array to pandas DataFrame if needed
+    if isinstance(X, np.ndarray):
+        X = pd.DataFrame(X, columns=[f"Feature {i+1}" for i in range(X.shape[1])])
+    
+    # Create mask where True indicates NaN values
+    nan_mask = X.isna()
+    
+    # Create axes if not provided
+    if ax is None:
+        fig, ax = plt.subplots(figsize=figsize)
+    
+    # Set theme depending on the number of features
+    if X.shape[1] > 50:
+        sns.set_theme(font_scale = 0.5)
+    else:
+        sns.set_theme(font_scale = 1)
+
+    # Plot the heatmap
+    sns.heatmap(nan_mask, 
+                cmap=cmap, 
+                cbar_kws={'label': 'Missing (True/False)'},
+                ax=ax,
+                square=False,
+                vmin=0, 
+                vmax=1)
+    
+    # Set labels and title
+    ax.set_title(title)
+    ax.set_xlabel('Features')
+    ax.set_ylabel('Samples')
+    
+    # Improve y-axis labels for large datasets
+    if X.shape[0] > 30:
+        # Show fewer y-tick labels to avoid crowding
+        step = max(1, int(np.ceil(X.shape[0] / 20)))
+        ax.set_yticks(np.arange(0, X.shape[0], step))
+        ax.set_yticklabels(X.index[::step])
+    
+    # # Handle long feature names if needed
+    # if max([len(str(c)) for c in X.columns]) > 10:
+    #     plt.xticks(rotation=45, ha='right')
+
+    # Ensure all feature names are shown on x-axis
+    ax.set_xticks(np.arange(len(X.columns)) + 0.5)
+    ax.set_xticklabels(X.columns, ha='center')
+    
+    plt.tight_layout()
+    
+    return fig
+
+
+def plot_feature_correlation(X: Union[np.ndarray, pd.DataFrame],
+                            figsize: tuple = (11, 9),
+                            cmap: str =  "YlGnBu",
+                            title: str = 'Feature Correlation',
+                            ax: Optional[plt.Axes] = None) -> plt.Axes:
+    """
+    Plot a heatmap of feature correlation.
+    
+    Parameters
+    ----------
+    X : array-like or pandas DataFrame
+        The data matrix to visualize correlations within
+    figsize : tuple, default=(11, 9)
+        Figure size as (width, height) in inches
+    cmap : str, default='inferno'
+        Colormap to use for the heatmap
+    title : str, default='Feature Correlation'
+        Title for the plot
+    ax : matplotlib.axes.Axes, optional
+        Pre-existing axes to plot on. If not provided, creates a new figure and axes.
+        
+    Returns
+    -------
+    matplotlib.figure.Figure
+        The figure containing the plot
+    """
+    # Convert numpy array to pandas DataFrame if needed
+    if isinstance(X, np.ndarray):
+        X = pd.DataFrame(X, columns=[f"Feature {i+1}" for i in range(X.shape[1])])
+   
+    # Create axes if not provided
+    if ax is None:
+        fig, ax = plt.subplots(figsize=figsize)
+    
+    # Set theme depending on the number of features
+    if X.shape[1] > 50:
+        sns.set_theme(font_scale = 0.5)
+    else:
+        sns.set_theme(font_scale = 1)
+
+    corr_matrix = X.corr(method = "spearman").abs()
+
+    # Plot the heatmap
+    sns.heatmap(corr_matrix, 
+                cmap=cmap, 
+                square=True,
+                cbar_kws={'label': 'Feature correlation: abs(rho)'}, 
+                ax = ax,
+                vmin=0, 
+                vmax=1) 
+    
+    ax.set_title(title)
+
+
+    return fig   
+
+def plot_design_matrix(X: Union[np.ndarray, pd.DataFrame],
+             figsize: tuple = (11, 9),
+             cmap: str = 'inferno',
+             title: str = 'Design Matrix',
+             ax: Optional[plt.Axes] = None) -> plt.Axes:
+    """
+    Plot a heatmap of NaN values in the input data.
+    
+    Parameters
+    ----------
+    X : array-like or pandas DataFrame
+        The data matrix to visualize 
+    figsize : tuple, default=(11, 9)
+        Figure size as (width, height) in inches
+    cmap : str, default='inferno'
+        Colormap to use for the heatmap
+    title : str, default='Design Matrix'
+        Title for the plot
+    ax : matplotlib.axes.Axes, optional
+        Pre-existing axes to plot on. If not provided, creates a new figure and axes.
+        
+    Returns
+    -------
+    matplotlib.figure.Figure
+        The figure containing the plot
+    """
+
+    # Convert numpy array to pandas DataFrame if needed
+    if isinstance(X, np.ndarray):
+        X = pd.DataFrame(X, columns=[f"Feature {i+1}" for i in range(X.shape[1])])
+   
+    # Create axes if not provided
+    if ax is None:
+        fig, ax = plt.subplots(figsize=figsize)
+    
+    # Set theme depending on the number of features
+    if X.shape[1] > 50:
+        sns.set_theme(font_scale = 0.5)
+    else:
+        sns.set_theme(font_scale = 1)
+
+    # Plot the heatmap
+    sns.heatmap(X.to_numpy(), 
+                cmap=cmap, 
+                cbar_kws={'label': 'Feature values'},
+                ax=ax,
+                square=False,
+                )
+    
+    # Set labels and title
+    ax.set_title(title)
+    ax.set_xlabel('Features')
+    ax.set_ylabel('Samples')
+    
+    # Improve y-axis labels for large datasets
+    if X.shape[0] > 30:
+        # Show fewer y-tick labels to avoid crowding
+        step = max(1, int(np.ceil(X.shape[0] / 20)))
+        ax.set_yticks(np.arange(0, X.shape[0], step))
+        ax.set_yticklabels(X.index[::step])
+    
+    # # Handle long feature names if needed
+    # if max([len(str(c)) for c in X.columns]) > 10:
+    #     plt.xticks(rotation=45, ha='right')
+
+    # Ensure all feature names are shown on x-axis
+    ax.set_xticks(np.arange(len(X.columns)) + 0.5)
+    ax.set_xticklabels(X.columns, ha='center')
+    
+    plt.tight_layout()
+    
+    return fig
+
+# %%
