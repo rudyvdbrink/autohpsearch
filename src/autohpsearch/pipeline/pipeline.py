@@ -12,6 +12,7 @@ from sklearn.metrics import get_scorer
 
 # Import AutoHPSearch functions
 from autohpsearch.search.hptuing import tune_hyperparameters, generate_hypergrid
+from autohpsearch.pipeline.reporter import DataReporter
 
 
 class OutlierRemover(BaseEstimator, TransformerMixin):
@@ -177,7 +178,6 @@ class OutlierRemover(BaseEstimator, TransformerMixin):
     def get_mask(self):
         """Return the mask of non-outlier samples."""
         return self.mask_
-
 
 class TargetTransformer(BaseEstimator, TransformerMixin):
     """Class for applying transformations to the target variable."""
@@ -411,6 +411,12 @@ class AutoMLPipeline:
         self.best_model_ = None
         self.feature_names_ = None
         self.outlier_mask_ = None
+
+        # Store original training data for reporting
+        self.X_train_original_ = None
+        self.y_train_original_ = None
+        self.X_train_processed_ = None
+        self.y_train_processed_ = None
     
     def _identify_features(self, X):
         """Identify numerical and categorical features in the dataset."""
@@ -573,6 +579,10 @@ class AutoMLPipeline:
         """
         if self.verbose:
             print("Starting AutoML pipeline fitting process...")
+
+        # Store original training data for reporting
+        self.X_train_original_ = X_train.copy() if hasattr(X_train, 'copy') else X_train
+        self.y_train_original_ = y_train.copy() if hasattr(y_train, 'copy') else y_train
         
         # Store original feature names if available
         if hasattr(X_train, 'columns'):
@@ -625,6 +635,10 @@ class AutoMLPipeline:
             print("Fitting preprocessor on training data...")
         
         X_train_transformed = self.preprocessor_.fit_transform(X_train)
+
+        # Store processed training data for reporting
+        self.X_train_processed_ = X_train_transformed
+        self.y_train_processed_ = y_train
         
         # Step 5: Generate hyperparameter grid
         if self.verbose:
@@ -769,6 +783,47 @@ class AutoMLPipeline:
             score = get_scorer(self.scoring)(self.best_model_, X_transformed, y)
         
         return score
+    
+    def generate_data_report(self, report_directory: str = "reports", version: int = None):
+        """
+        Generate a comprehensive data report in markdown format.
+        
+        Parameters
+        ----------
+        report_directory : str, optional (default="reports")
+            Directory where the report will be saved
+        version : int, optional (default=None)
+            Version number for the report. If None, will auto-increment.
+            
+        Returns
+        -------
+        str
+            Path to the generated report file
+        """
+        if self.X_train_original_ is None:
+            raise ValueError("No training data available. Please call 'fit' first.")
+        
+        # Create reporter instance
+        reporter = DataReporter(report_directory=report_directory)
+        
+        # Extract version from pipeline if available and version not specified
+        if version is None and hasattr(self, '_pipeline_version'):
+            version = self._pipeline_version
+        
+        # Generate the report
+        report_path = reporter.generate_report(
+            X_train=self.X_train_original_,
+            y_train=self.y_train_original_,
+            pipeline=self,
+            X_train_processed=self.X_train_processed_,
+            y_train_processed=self.y_train_processed_,
+            version=version
+        )
+        
+        if self.verbose:
+            print(f"Data report generated: {report_path}")
+        
+        return report_path
     
     def save(self, directory=None, filename=None):
         """
