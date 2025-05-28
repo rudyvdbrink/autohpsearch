@@ -35,6 +35,10 @@ def feature_plot(feature: Union[np.ndarray, pd.Series],
     matplotlib.axes.Axes
         The axes containing the plot
     """
+
+    # Consistent theme for all plots
+    sns.set_theme(style='white')
+
     # Convert numpy array to pandas Series if needed
     if isinstance(feature, np.ndarray):
         feature = pd.Series(feature)
@@ -47,7 +51,7 @@ def feature_plot(feature: Union[np.ndarray, pd.Series],
         
     # Create axes if not provided
     if ax is None:
-        fig, ax = plt.subplots(figsize=figsize)
+        fig, ax = plt.subplots(figsize=figsize)    
     
     # Determine if the feature is categorical or numerical
     is_categorical = False
@@ -112,11 +116,67 @@ def feature_plot(feature: Union[np.ndarray, pd.Series],
     
     # Turn off the top and right spines
     ax.spines['top'].set_visible(False)
-    ax.spines['right'].set_visible(False)
+    ax.spines['right'].set_visible(False)   
     
     # Return the axes
     return ax
 
+def target_plot(y, title="Target"):
+    """
+    Create a plot showing the distribution of the target variable.
+    
+    Parameters
+    ----------
+    y : array-like
+        Target variable
+    title : str, optional (default="Target")
+        Title for the plot
+        
+    Returns
+    -------
+    ax : matplotlib.axes.Axes
+        Axes containing the target plot
+    """
+
+    ax = feature_plot(y, title=title)
+
+    return ax
+
+    # fig, ax = plt.subplots(figsize=(8, 6))
+    
+    # if hasattr(y, 'values'):
+    #     y_values = y.values
+    # else:
+    #     y_values = np.array(y)
+    
+    # # Check if target is continuous or categorical
+    # unique_vals = np.unique(y_values[~pd.isna(y_values)])  # Exclude NaN values
+    
+    # if len(unique_vals) > 10:
+    #     # Continuous target
+    #     ax.hist(y_values, bins=30, alpha=0.7, edgecolor='black')
+    #     ax.set_title(f'{title} Distribution')
+    #     ax.set_xlabel(title)
+    #     ax.set_ylabel('Frequency')
+    # else:
+    #     # Categorical target
+    #     unique_vals, counts = np.unique(y_values, return_counts=True)
+    #     bars = ax.bar(range(len(unique_vals)), counts, alpha=0.7)
+    #     ax.set_title(f'{title} Distribution')
+    #     ax.set_xlabel(title)
+    #     ax.set_ylabel('Count')
+        
+    #     # Set x-axis labels
+    #     ax.set_xticks(range(len(unique_vals)))
+    #     ax.set_xticklabels([str(val) for val in unique_vals])
+        
+    #     # Add value labels on bars
+    #     for bar, count in zip(bars, counts):
+    #         ax.text(bar.get_x() + bar.get_width()/2, bar.get_height() + max(counts)*0.01,
+    #                 str(count), ha='center', va='bottom')
+    
+    # plt.tight_layout()
+    # return ax
 
 def plot_feature_grid(X: Union[np.ndarray, pd.DataFrame], 
                       cols: int = 4,
@@ -297,9 +357,9 @@ def plot_feature_correlation(X: Union[np.ndarray, pd.DataFrame],
     
     # Set theme depending on the number of features
     if X.shape[1] > 50:
-        sns.set_theme(font_scale = 0.5)
+        sns.set_theme(font_scale = 0.5, style='white')
     else:
-        sns.set_theme(font_scale = 1)
+        sns.set_theme(font_scale = 1, style='white')
 
     corr_matrix = X.corr(method = "spearman").abs()
 

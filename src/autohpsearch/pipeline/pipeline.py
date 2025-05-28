@@ -126,6 +126,7 @@ class AutoMLPipeline:
         self.results_ = None
         self.best_model_ = None
         self.feature_names_ = None
+        self.transformed_feature_names_ = None  # NEW: Store feature names after preprocessing
         self.outlier_mask_ = None
 
         # Store original training data for reporting
@@ -273,6 +274,118 @@ class AutoMLPipeline:
         
         return preprocessor
     
+    def _extract_feature_names(self):
+        """
+        Extract feature names from the fitted preprocessor.
+        
+        Returns
+        -------
+        list
+            List of feature names after preprocessing
+        """
+        if self.preprocessor_ is None:
+            return []
+        
+        feature_names = []
+        
+        # Iterate through each transformer in the ColumnTransformer
+        for transformer_name, transformer, feature_indices in self.preprocessor_.transformers_:
+            if transformer_name == 'remainder':
+                continue
+                
+            # Get the feature names for this transformer
+            if transformer_name == 'num':
+                # Numerical features keep their original names
+                if isinstance(feature_indices, list):
+                    # Feature names were provided
+                    if all(isinstance(idx, str) for idx in feature_indices):
+                        num_feature_names = feature_indices
+                    else:
+                        # Integer indices, create generic names
+                        num_feature_names = [f'num_feature_{idx}' for idx in feature_indices]
+                else:
+                    # Single feature
+                    num_feature_names = [str(feature_indices)]
+                
+                feature_names.extend(num_feature_names)
+                
+            elif transformer_name in ['cat', 'cat_onehot']:
+                # Categorical features with one-hot encoding
+                try:
+                    # Try to get feature names from the encoder
+                    encoder = transformer.named_steps['encoder']
+                    if hasattr(encoder, 'get_feature_names_out'):
+                        # sklearn >= 1.0
+                        input_features = feature_indices if isinstance(feature_indices, list) else [str(feature_indices)]
+                        cat_feature_names = encoder.get_feature_names_out(input_features).tolist()
+                    elif hasattr(encoder, 'get_feature_names'):
+                        # sklearn < 1.0
+                        input_features = feature_indices if isinstance(feature_indices, list) else [str(feature_indices)]
+                        cat_feature_names = encoder.get_feature_names(input_features).tolist()
+                    else:
+                        # Fallback: estimate based on categories
+                        if hasattr(encoder, 'categories_'):
+                            cat_feature_names = []
+                            for i, (feature, categories) in enumerate(zip(feature_indices, encoder.categories_)):
+                                for category in categories:
+                                    cat_feature_names.append(f'{feature}_{category}')
+                        else:
+                            # Ultimate fallback
+                            cat_feature_names = [f'cat_feature_{i}' for i in range(len(feature_indices))]
+                except:
+                    # If all else fails, create generic names
+                    cat_feature_names = [f'cat_feature_{i}' for i in range(len(feature_indices))]
+                
+                feature_names.extend(cat_feature_names)
+                
+            elif transformer_name == 'cat_ordinal':
+                # Categorical features with ordinal encoding keep original names
+                if isinstance(feature_indices, list):
+                    # Feature names were provided
+                    if all(isinstance(idx, str) for idx in feature_indices):
+                        ordinal_feature_names = feature_indices
+                    else:
+                        # Integer indices, create generic names
+                        ordinal_feature_names = [f'ordinal_feature_{idx}' for idx in feature_indices]
+                else:
+                    # Single feature
+                    ordinal_feature_names = [str(feature_indices)]
+                
+                feature_names.extend(ordinal_feature_names)
+        
+        return feature_names
+    
+    def get_feature_names(self, input_type='transformed'):
+        """
+        Get feature names for the pipeline.
+        
+        Parameters
+        ----------
+        input_type : str, optional (default='transformed')
+            Type of feature names to return:
+            - 'original': Original feature names before preprocessing
+            - 'transformed': Feature names after preprocessing
+            
+        Returns
+        -------
+        list
+            List of feature names
+        """
+        if input_type == 'original':
+            if self.feature_names_ is not None:
+                return self.feature_names_
+            else:
+                return [f'feature_{i}' for i in range(len(self.numerical_features_) + len(self.categorical_features_))]
+        
+        elif input_type == 'transformed':
+            if self.transformed_feature_names_ is not None:
+                return self.transformed_feature_names_
+            else:
+                return []
+        
+        else:
+            raise ValueError("input_type must be 'original' or 'transformed'")
+    
     def fit(self, X_train, y_train, X_test, y_test):
         """
         Fit the pipeline on training data and evaluate on test data.
@@ -351,12 +464,23 @@ class AutoMLPipeline:
             print("Fitting preprocessor on training data...")
         
         X_train_transformed = self.preprocessor_.fit_transform(X_train)
+        
+        # Step 5: Extract and store transformed feature names
+        if self.verbose:
+            print("Extracting feature names after preprocessing...")
+        
+        self.transformed_feature_names_ = self._extract_feature_names()
+        
+        if self.verbose and self.transformed_feature_names_:
+            print(f"Extracted {len(self.transformed_feature_names_)} feature names after preprocessing")
+            if len(self.transformed_feature_names_) <= 20:
+                print(f"Feature names: {self.transformed_feature_names_}")
 
         # Store processed training data for reporting
         self.X_train_processed_ = X_train_transformed
         self.y_train_processed_ = y_train
         
-        # Step 5: Generate hyperparameter grid
+        # Step 6: Generate hyperparameter grid
         if self.verbose:
             print("Generating hyperparameter grid...")
         
@@ -365,13 +489,13 @@ class AutoMLPipeline:
             task_type=self.task_type
         )
         
-        # Step 6: Apply preprocessor to test data
+        # Step 7: Apply preprocessor to test data
         if self.verbose:
             print("Transforming test data...")
         
         X_test_transformed = self.preprocessor_.transform(X_test)
         
-        # Step 7: Tune hyperparameters
+        # Step 8: Tune hyperparameters
         if self.verbose:
             print(f"Running hyperparameter search with {self.search_type} search...")
         
@@ -597,6 +721,9 @@ class AutoMLPipeline:
                     v = int(match.group(1))
                     version = max(version, v + 1)
         
+        # Store version for report generation
+        self._pipeline_version = version
+        
         # Create final filename with version
         final_filename = f"{filename}_v{version}.joblib"
         file_path = os.path.join(directory, final_filename)
@@ -610,6 +737,7 @@ class AutoMLPipeline:
             'best_model': self.best_model_,
             'target_transformer': self.target_transformer_,
             'feature_names': self.feature_names_,
+            'transformed_feature_names': self.transformed_feature_names_,  # NEW: Save transformed feature names
             'task_type': self.task_type,
             'numerical_features': self.numerical_features_,
             'categorical_features': self.categorical_features_,
@@ -704,6 +832,7 @@ class AutoMLPipeline:
         pipeline.best_model_ = pipeline_dict['best_model']
         pipeline.target_transformer_ = pipeline_dict['target_transformer']
         pipeline.feature_names_ = pipeline_dict['feature_names']
+        pipeline.transformed_feature_names_ = pipeline_dict.get('transformed_feature_names')  # NEW: Load transformed feature names
         pipeline.numerical_features_ = pipeline_dict['numerical_features']
         pipeline.categorical_features_ = pipeline_dict['categorical_features']
         pipeline.scoring = pipeline_dict['scoring']
@@ -720,6 +849,10 @@ class AutoMLPipeline:
             if 'saved_by' in pipeline_dict['metadata']:
                 print(f"Saved by: {pipeline_dict['metadata']['saved_by']}")
                 print(f"Saved at: {pipeline_dict['metadata']['saved_at']}")
+            
+            # Show feature name information
+            if pipeline.transformed_feature_names_:
+                print(f"Loaded {len(pipeline.transformed_feature_names_)} transformed feature names")
         
         return pipeline
 
@@ -751,6 +884,13 @@ if __name__ == "__main__":
     
     # Fit pipeline
     pipeline.fit(X_train, y_train, X_test, y_test)
+    
+    # Get feature names
+    original_names = pipeline.get_feature_names('original')
+    transformed_names = pipeline.get_feature_names('transformed')
+    
+    print(f"Original feature names: {original_names}")
+    print(f"Transformed feature names: {transformed_names}")
     
     # Make predictions
     y_pred = pipeline.predict(X_test)

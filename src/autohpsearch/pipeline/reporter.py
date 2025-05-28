@@ -11,7 +11,7 @@ import re
 from autohpsearch.vis.reporting import (plot_feature_grid,
                                         plot_feature_correlation, 
                                         plot_nans, 
-                                        feature_plot)
+                                        target_plot)
 
 # %% the class
 
@@ -34,7 +34,7 @@ class DataReporter:
         # Create reports directory if it doesn't exist
         os.makedirs(self.report_directory, exist_ok=True)
     
-    def _generate_descriptive_stats(self, X, y=None):
+    def _generate_descriptive_stats(self, X, y=None, feature_names=None):
         """
         Generate descriptive statistics for the dataset.
         
@@ -44,6 +44,8 @@ class DataReporter:
             Input features
         y : array-like, optional
             Target variable
+        feature_names : list, optional
+            Feature names to use (useful for processed data with known feature names)
             
         Returns
         -------
@@ -52,15 +54,19 @@ class DataReporter:
         """
         if hasattr(X, 'columns'):
             data = X
-            feature_names = X.columns.tolist()
+            feature_names_to_use = X.columns.tolist()
         else:
-            feature_names = [f'Feature_{i}' for i in range(X.shape[1])]
-            data = pd.DataFrame(X, columns=feature_names)
+            # For numpy arrays, use provided feature names or create generic ones
+            if feature_names is not None:
+                feature_names_to_use = feature_names
+            else:
+                feature_names_to_use = [f'Feature_{i}' for i in range(X.shape[1])]
+            data = pd.DataFrame(X, columns=feature_names_to_use)
         
         stats = {
             'n_samples': len(data),
-            'n_features': len(feature_names),
-            'feature_names': feature_names,
+            'n_features': len(feature_names_to_use),
+            'feature_names': feature_names_to_use,
             'missing_values': {},
             'data_types': {},
             'numeric_features': [],
@@ -68,7 +74,7 @@ class DataReporter:
         }
         
         # Analyze each feature
-        for feature in feature_names:
+        for feature in feature_names_to_use:
             # Missing values
             missing_count = data[feature].isnull().sum()
             missing_pct = (missing_count / len(data)) * 100
@@ -153,9 +159,9 @@ class DataReporter:
             'outlier_percentage': outlier_percentage,
             'method': method,
             'threshold': threshold
-        }
-    
-    def _save_plot(self, fig_or_ax, filename, dpi=150):
+        } 
+        
+    def _save_plot(self, fig_or_ax, filename, report_subfolder, dpi=150):
         """
         Save a matplotlib figure or axes to file.
         
@@ -165,16 +171,18 @@ class DataReporter:
             Figure or axes to save
         filename : str
             Filename for the saved plot
+        report_subfolder : str
+            Subfolder name for this specific report
         dpi : int, optional (default=150)
             DPI for saved image
             
         Returns
         -------
         str
-            Relative path to saved plot
+            Relative path to saved plot (for markdown)
         """
-        # Create plots subdirectory
-        plots_dir = os.path.join(self.report_directory, "plots")
+        # Create plots subdirectory inside the report subfolder
+        plots_dir = os.path.join(self.report_directory, report_subfolder, "plots")
         os.makedirs(plots_dir, exist_ok=True)
         
         # Full path for the plot
@@ -192,7 +200,7 @@ class DataReporter:
         fig.savefig(plot_path, dpi=dpi, bbox_inches='tight')
         plt.close(fig)
         
-        # Return relative path for markdown
+        # Return relative path for markdown (relative to the report file location)
         return f"plots/{filename}.png"
     
     def generate_report(self, 
@@ -230,8 +238,16 @@ class DataReporter:
             version = self._get_next_version()
         
         timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-        report_filename = f"data_report_v{version}_{timestamp}.md"
-        report_path = os.path.join(self.report_directory, report_filename)
+        report_filename_base = f"data_report_v{version}_{timestamp}"
+        report_filename = f"{report_filename_base}.md"
+        
+        # Create subfolder for this report
+        report_subfolder = report_filename_base
+        report_subfolder_path = os.path.join(self.report_directory, report_subfolder)
+        os.makedirs(report_subfolder_path, exist_ok=True)
+        
+        # Full path for the report file (inside the subfolder)
+        report_path = os.path.join(report_subfolder_path, report_filename)
         
         # Generate statistics
         pre_stats = self._generate_descriptive_stats(X_train, y_train)
@@ -254,6 +270,18 @@ class DataReporter:
         report_lines.append(f"- **Numeric features**: {len(pre_stats['numeric_features'])}")
         report_lines.append(f"- **Categorical features**: {len(pre_stats['categorical_features'])}")
         report_lines.append("")
+        
+        # Feature names section
+        if pre_stats['feature_names']:
+            report_lines.append("### Original Feature Names")
+            if len(pre_stats['feature_names']) <= 20:
+                feature_list = ', '.join(f"`{name}`" for name in pre_stats['feature_names'])
+                report_lines.append(f"- {feature_list}")
+            else:
+                report_lines.append(f"- **Total features**: {len(pre_stats['feature_names'])}")
+                report_lines.append(f"- **First 10**: {', '.join(f'`{name}`' for name in pre_stats['feature_names'][:10])}")
+                report_lines.append(f"- **Last 10**: {', '.join(f'`{name}`' for name in pre_stats['feature_names'][-10:])}")
+            report_lines.append("")
         
         # Target variable info
         if 'target' in pre_stats:
@@ -289,14 +317,14 @@ class DataReporter:
         try:
             # Feature distributions
             fig_features = plot_feature_grid(X_train)
-            features_plot_path = self._save_plot(fig_features, f"features_pre_v{version}")
+            features_plot_path = self._save_plot(fig_features, f"features_pre_v{version}", report_subfolder)
             report_lines.append("### Feature Distributions (Pre-processing)")
             report_lines.append(f"![Feature Distributions]({features_plot_path})")
             report_lines.append("")
             
-            # Target distribution
-            ax_target = feature_plot(y_train)
-            target_plot_path = self._save_plot(ax_target, f"target_pre_v{version}")
+            # Target distribution 
+            ax_target = target_plot(y_train, title="Target")
+            target_plot_path = self._save_plot(ax_target, f"target_pre_v{version}", report_subfolder)
             report_lines.append("### Target Distribution (Pre-processing)")
             report_lines.append(f"![Target Distribution]({target_plot_path})")
             report_lines.append("")
@@ -304,7 +332,7 @@ class DataReporter:
             # Missing values plot
             if total_missing > 0:
                 fig_nans = plot_nans(X_train)
-                nans_plot_path = self._save_plot(fig_nans, f"missing_values_v{version}")
+                nans_plot_path = self._save_plot(fig_nans, f"missing_values_v{version}", report_subfolder)
                 report_lines.append("### Missing Values Visualization")
                 report_lines.append(f"![Missing Values]({nans_plot_path})")
                 report_lines.append("")
@@ -340,31 +368,22 @@ class DataReporter:
             report_lines.append(f"- **Number of iterations**: {pipeline.n_iter}")
             report_lines.append(f"- **Cross-validation folds**: {pipeline.cv}")
             report_lines.append("")
-            
-            # Best model results (if available)
-            if hasattr(pipeline, 'best_model_') and pipeline.best_model_ is not None:
-                report_lines.append("### Best Model Results")
-                report_lines.append(f"- **Best model**: {type(pipeline.best_model_).__name__}")
-                
-                if hasattr(pipeline, 'results_') and pipeline.results_ is not None:
-                    results_df = pipeline.results_['results']
-                    best_score = results_df['test_score'].iloc[0]
-                    report_lines.append(f"- **Test score ({pipeline.scoring})**: {best_score:.4f}")
-                
-                # Model parameters
-                if hasattr(pipeline.best_model_, 'get_params'):
-                    params = pipeline.best_model_.get_params()
-                    report_lines.append("- **Best hyperparameters**:")
-                    for param, value in params.items():
-                        report_lines.append(f"  - {param}: {value}")
-                report_lines.append("")
         
         # Post-processing section (only if processed data is available)
         if X_train_processed is not None:
             report_lines.append("## Post-Processing Analysis")
             report_lines.append("")
             
-            post_stats = self._generate_descriptive_stats(X_train_processed, y_train_processed)
+            # Get transformed feature names from pipeline if available
+            transformed_feature_names = None
+            if pipeline is not None and hasattr(pipeline, 'get_feature_names'):
+                try:
+                    transformed_feature_names = pipeline.get_feature_names('transformed')
+                except:
+                    transformed_feature_names = None
+            
+            post_stats = self._generate_descriptive_stats(X_train_processed, y_train_processed, 
+                                                         feature_names=transformed_feature_names)
             
             # Dataset overview after processing
             report_lines.append("### Dataset Overview (After Processing)")
@@ -384,30 +403,167 @@ class DataReporter:
             
             report_lines.append("")
             
+            # Transformed feature names section
+            if transformed_feature_names:
+                report_lines.append("### Transformed Feature Names")
+                if len(transformed_feature_names) <= 20:
+                    feature_list = ', '.join(f"`{name}`" for name in transformed_feature_names)
+                    report_lines.append(f"- {feature_list}")
+                else:
+                    report_lines.append(f"- **Total features**: {len(transformed_feature_names)}")
+                    report_lines.append(f"- **First 10**: {', '.join(f'`{name}`' for name in transformed_feature_names[:10])}")
+                    report_lines.append(f"- **Last 10**: {', '.join(f'`{name}`' for name in transformed_feature_names[-10:])}")
+                
+                # Show feature mapping if available
+                if pipeline and hasattr(pipeline, 'feature_names_') and pipeline.feature_names_:
+                    report_lines.append("")
+                    report_lines.append("### Feature Mapping")
+                    report_lines.append("**Original → Transformed:**")
+                    original_names = pipeline.feature_names_
+                    
+                    # Show mapping for the first few features
+                    if len(original_names) <= 10:
+                        for orig in original_names:
+                            # Find transformed features that correspond to this original feature
+                            matching_transformed = [t for t in transformed_feature_names if orig in t or t.startswith(orig)]
+                            if matching_transformed:
+                                if len(matching_transformed) == 1:
+                                    report_lines.append(f"- `{orig}` → `{matching_transformed[0]}`")
+                                else:
+                                    report_lines.append(f"- `{orig}` → {len(matching_transformed)} features: {', '.join(f'`{t}`' for t in matching_transformed[:3])}")
+                                    if len(matching_transformed) > 3:
+                                        report_lines.append(f"  - ... and {len(matching_transformed) - 3} more")
+                    else:
+                        report_lines.append(f"*Mapping available for {len(original_names)} original features*")
+                
+                report_lines.append("")
+            
             try:
+                # Create DataFrame with feature names for post-processing plots
+                if transformed_feature_names and not hasattr(X_train_processed, 'columns'):
+                    X_processed_df = pd.DataFrame(X_train_processed, columns=transformed_feature_names)
+                else:
+                    X_processed_df = X_train_processed
+                
                 # Feature correlation plot (post-processing)
-                fig_corr = plot_feature_correlation(X_train_processed)
-                corr_plot_path = self._save_plot(fig_corr, f"correlation_post_v{version}")
+                fig_corr = plot_feature_correlation(X_processed_df)
+                corr_plot_path = self._save_plot(fig_corr, f"correlation_post_v{version}", report_subfolder)
                 report_lines.append("### Feature Correlations (Post-processing)")
                 report_lines.append(f"![Feature Correlations]({corr_plot_path})")
                 report_lines.append("")
                 
                 # Feature distributions (post-processing)
-                fig_features_post = plot_feature_grid(X_train_processed)
-                features_post_plot_path = self._save_plot(fig_features_post, f"features_post_v{version}")
+                fig_features_post = plot_feature_grid(X_processed_df)
+                features_post_plot_path = self._save_plot(fig_features_post, f"features_post_v{version}", report_subfolder)
                 report_lines.append("### Feature Distributions (Post-processing)")
                 report_lines.append(f"![Feature Distributions Post]({features_post_plot_path})")
                 report_lines.append("")
                 
                 # Target distribution (post-processing, if different)
                 if y_train_processed is not None:
-                    ax_target_post = feature_plot(y_train_processed)
-                    target_post_plot_path = self._save_plot(ax_target_post, f"target_post_v{version}")
+                    ax_target_post = target_plot(y_train_processed, title="Target (Processed)")
+                    target_post_plot_path = self._save_plot(ax_target_post, f"target_post_v{version}", report_subfolder)
                     report_lines.append("### Target Distribution (Post-processing)")
                     report_lines.append(f"![Target Distribution Post]({target_post_plot_path})")
                     report_lines.append("")
             except Exception as e:
                 report_lines.append("*Note: Some post-processing plots could not be generated*")
+                report_lines.append("")
+        
+        # Best Model Results Section (moved to the end)
+        if pipeline is not None and hasattr(pipeline, 'best_model_') and pipeline.best_model_ is not None:
+            report_lines.append("## Best Model Results")
+            report_lines.append("")
+            
+            report_lines.append("### Model Information")
+            report_lines.append(f"- **Best model**: {type(pipeline.best_model_).__name__}")
+            
+            if hasattr(pipeline, 'results_') and pipeline.results_ is not None:
+                results_df = pipeline.results_['results']
+                best_score = results_df['test_score'].iloc[0]
+                report_lines.append(f"- **Test score ({pipeline.scoring})**: {best_score:.4f}")
+                
+                # Add CV score if available
+                if 'cv_score_mean' in results_df.columns:
+                    cv_mean = results_df['cv_score_mean'].iloc[0]
+                    cv_std = results_df['cv_score_std'].iloc[0] if 'cv_score_std' in results_df.columns else None
+                    if cv_std is not None:
+                        report_lines.append(f"- **CV score**: {cv_mean:.4f} ± {cv_std:.4f}")
+                    else:
+                        report_lines.append(f"- **CV score**: {cv_mean:.4f}")
+            
+            report_lines.append("")
+            
+            # Model hyperparameters
+            if hasattr(pipeline.best_model_, 'get_params'):
+                params = pipeline.best_model_.get_params()
+                report_lines.append("### Best Hyperparameters")
+                
+                # Group parameters for better readability
+                important_params = []
+                other_params = []
+                
+                # Define important parameters for common models
+                important_param_keywords = [
+                    'n_estimators', 'max_depth', 'learning_rate', 'min_samples_split', 
+                    'min_samples_leaf', 'max_features', 'C', 'gamma', 'kernel', 
+                    'alpha', 'l1_ratio', 'hidden_layer_sizes', 'activation', 'solver'
+                ]
+                
+                for param, value in params.items():
+                    if any(keyword in param.lower() for keyword in important_param_keywords):
+                        important_params.append((param, value))
+                    else:
+                        other_params.append((param, value))
+                
+                # Display important parameters first
+                if important_params:
+                    report_lines.append("**Key Parameters:**")
+                    for param, value in important_params:
+                        report_lines.append(f"- `{param}`: {value}")
+                    
+                    if other_params:
+                        report_lines.append("")
+                        report_lines.append("**Other Parameters:**")
+                        # Limit other parameters to avoid clutter
+                        for param, value in other_params[:10]:  # Show only first 10
+                            report_lines.append(f"- `{param}`: {value}")
+                        
+                        if len(other_params) > 10:
+                            report_lines.append(f"- ... and {len(other_params) - 10} more parameters")
+                else:
+                    # If no important parameters found, show all (up to 15)
+                    for param, value in list(params.items())[:15]:
+                        report_lines.append(f"- `{param}`: {value}")
+                    
+                    if len(params) > 15:
+                        report_lines.append(f"- ... and {len(params) - 15} more parameters")
+                
+                report_lines.append("")
+            
+            # Feature importance (if available)
+            if hasattr(pipeline.best_model_, 'feature_importances_'):
+                report_lines.append("### Feature Importance")
+                feature_importances = pipeline.best_model_.feature_importances_
+                
+                # Get feature names for importance
+                if pipeline.transformed_feature_names_ and len(pipeline.transformed_feature_names_) == len(feature_importances):
+                    feature_names_for_importance = pipeline.transformed_feature_names_
+                else:
+                    feature_names_for_importance = [f'Feature_{i}' for i in range(len(feature_importances))]
+                
+                # Sort by importance
+                importance_pairs = list(zip(feature_names_for_importance, feature_importances))
+                importance_pairs.sort(key=lambda x: x[1], reverse=True)
+                
+                # Show top 10 most important features
+                report_lines.append("**Top 10 Most Important Features:**")
+                for i, (feature_name, importance) in enumerate(importance_pairs[:10]):
+                    report_lines.append(f"{i+1}. `{feature_name}`: {importance:.4f}")
+                
+                if len(importance_pairs) > 10:
+                    report_lines.append(f"\n*... and {len(importance_pairs) - 10} more features*")
+                
                 report_lines.append("")
         
         # Write the report
@@ -421,14 +577,27 @@ class DataReporter:
         if not os.path.exists(self.report_directory):
             return 1
         
-        # Look for existing reports to determine next version
-        pattern = re.compile(r"data_report_v(\d+)_.*\.md$")
+        # Look for existing report subfolders to determine next version
+        pattern = re.compile(r"data_report_v(\d+)_\d{8}_\d{6}$")
         version = 1
         
-        for filename in os.listdir(self.report_directory):
-            match = pattern.match(filename)
-            if match:
-                v = int(match.group(1))
-                version = max(version, v + 1)
+        # Check both files (old format) and directories (new format)
+        for item in os.listdir(self.report_directory):
+            item_path = os.path.join(self.report_directory, item)
+            
+            # Check directories (new format)
+            if os.path.isdir(item_path):
+                match = pattern.match(item)
+                if match:
+                    v = int(match.group(1))
+                    version = max(version, v + 1)
+            
+            # Also check old format files for backward compatibility
+            elif item.endswith('.md'):
+                old_pattern = re.compile(r"data_report_v(\d+)_.*\.md$")
+                match = old_pattern.match(item)
+                if match:
+                    v = int(match.group(1))
+                    version = max(version, v + 1)
         
         return version
