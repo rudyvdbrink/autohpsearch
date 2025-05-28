@@ -343,7 +343,9 @@ def tune_hyperparameters(X_train, y_train, X_test, y_test, hypergrid=None, scori
     )
     
     # Sort by test score (and cv_score in case of ties)
-    results_df = results_df.sort_values(['test_score', 'cv_score', 'prediction_time_ms'], ascending=[False, False, True])
+    #results_df = results_df.sort_values(['test_score', 'cv_score', 'prediction_time_ms'], ascending=[False, False, True])
+    results_df = results_df.sort_values(['cv_score', 'train_time_ms', 'prediction_time_ms'], ascending=[False, True, True])
+
     
     # Find the best overall model
     if len(results_df) > 0:

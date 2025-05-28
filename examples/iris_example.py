@@ -53,9 +53,10 @@ clf_results = tune_hyperparameters(
 )
 
 # Print the results:
-# It is possible (likely) that here some models are tied in performance on the test set. In this case,
-# autohpsearch will additionally sort models by their performance in cross-validation. A third criterion
-# for sorting is the computation time for model predcition.
+# It is possible (likely) that here some models are tied in performance on the test set. 
+# Models are selected based on performance in cross-validation (computed on the trainning data).
+# In this case of ties,autohpsearch will additionally sort models by their training time. 
+# A third criterion for sorting is the computation time for model predcition.
 print(clf_results['results'])
 
 # Get the best model
