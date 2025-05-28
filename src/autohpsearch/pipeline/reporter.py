@@ -109,57 +109,60 @@ class DataReporter:
         
         return stats
     
-    def _detect_outliers(self, X, method='zscore', threshold=3.0):
+    def _detect_outliers(self, X, y, pipeline=None):
         """
-        Detect outliers in the dataset.
+        Detect outliers in the data using the same method as in the pipeline.
         
         Parameters
         ----------
         X : array-like or DataFrame
-            Input features
-        method : str, optional (default='zscore')
-            Method for outlier detection
-        threshold : float, optional (default=3.0)
-            Threshold for outlier detection
+            The input data to detect outliers in
+        pipeline : AutoMLPipeline, optional
+            The fitted pipeline that may contain an outlier remover
             
         Returns
         -------
         dict
-            Dictionary containing outlier information
+            Dictionary containing outlier statistics and detection parameters:
+            - total_outliers: Number of outliers detected
+            - outlier_percentage: Percentage of data points identified as outliers
+            - method: Method used for outlier detection
+            - threshold: Threshold value used for detection
         """
-        if hasattr(X, 'select_dtypes'):
-            numeric_data = X.select_dtypes(include=[np.number])
-        else:
-            numeric_data = pd.DataFrame(X)
+        # Default values
+        outlier_count = 0
+        outlier_percentage = 0.0
+        method = 'none'
+        threshold = 0.0
         
-        if len(numeric_data.columns) == 0:
-            return {'total_outliers': 0, 'outlier_percentage': 0.0, 'method': method}
-        
-        outlier_mask = np.zeros(len(numeric_data), dtype=bool)
-        
-        if method == 'zscore':
-            from scipy import stats
-            z_scores = np.abs(stats.zscore(numeric_data.fillna(numeric_data.mean())))
-            outlier_mask = np.any(z_scores > threshold, axis=1)
-        elif method == 'iqr':
-            q1 = numeric_data.quantile(0.25)
-            q3 = numeric_data.quantile(0.75)
-            iqr = q3 - q1
-            lower_bound = q1 - (threshold * iqr)
-            upper_bound = q3 + (threshold * iqr)
-            outlier_mask = np.any(
-                (numeric_data < lower_bound) | (numeric_data > upper_bound), axis=1
+        from autohpsearch.pipeline.cleaning import OutlierRemover
+
+        # Check if pipeline has an outlier remover
+        if pipeline is not None and hasattr(pipeline, 'outlier_remover_') and pipeline.outlier_remover_ is not None:
+            
+            outlier_remover = OutlierRemover(
+                method=pipeline.outlier_method,
+                threshold=pipeline.outlier_threshold
             )
-        
-        outlier_count = outlier_mask.sum()
-        outlier_percentage = (outlier_count / len(numeric_data)) * 100
-        
+            
+            # Get N for reference
+            y_len = len(y)
+            
+            # Fit and transform on training data only
+            outlier_remover.fit(X)
+            X, y = outlier_remover.transform(X, y)            
+
+            n_removed = y_len - len(y)
+            outlier_percentage = n_removed/y_len*100
+            method=pipeline.outlier_method
+            threshold=pipeline.outlier_threshold
+            
         return {
-            'total_outliers': outlier_count,
+            'total_outliers': n_removed,
             'outlier_percentage': outlier_percentage,
             'method': method,
             'threshold': threshold
-        } 
+        }
         
     def _save_plot(self, fig_or_ax, filename, report_subfolder, dpi=150):
         """
@@ -254,7 +257,7 @@ class DataReporter:
         
         # Generate statistics
         pre_stats = self._generate_descriptive_stats(X_train, y_train)
-        pre_outliers = self._detect_outliers(X_train)
+        pre_outliers = self._detect_outliers(X_train,y_train,pipeline=pipeline)
         
         # Start building the report
         report_lines = []
