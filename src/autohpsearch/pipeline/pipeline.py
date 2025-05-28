@@ -37,7 +37,7 @@ class AutoMLPipeline:
                  search_type: str = 'random',
                  n_iter: int = 30,
                  cv: int = 5,
-                 verbose: bool = True):
+                 verbose: bool = False):
         """
         Initialize the AutoML pipeline.
         
@@ -80,7 +80,7 @@ class AutoMLPipeline:
             Number of iterations for random or bayesian search
         cv : int, optional (default=5)
             Number of cross-validation folds
-        verbose : bool, optional (default=True)
+        verbose : bool, optional (default=False)
             Whether to print progress information
         """
         self.task_type = task_type

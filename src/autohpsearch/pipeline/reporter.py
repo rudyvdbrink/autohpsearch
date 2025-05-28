@@ -130,16 +130,24 @@ class DataReporter:
             - threshold: Threshold value used for detection
         """
         # Default values
-        outlier_count = 0
+        n_removed = 0
         outlier_percentage = 0.0
         method = 'none'
         threshold = 0.0
         
-        from autohpsearch.pipeline.cleaning import OutlierRemover
+        if pipeline.remove_outliers is False:
+            return {
+            'total_outliers': n_removed,
+            'outlier_percentage': outlier_percentage,
+            'method': method,
+            'threshold': threshold
+        }
 
         # Check if pipeline has an outlier remover
         if pipeline is not None and hasattr(pipeline, 'outlier_remover_') and pipeline.outlier_remover_ is not None:
             
+            from autohpsearch.pipeline.cleaning import OutlierRemover
+
             outlier_remover = OutlierRemover(
                 method=pipeline.outlier_method,
                 threshold=pipeline.outlier_threshold
