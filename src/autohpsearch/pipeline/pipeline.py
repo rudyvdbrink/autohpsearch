@@ -676,7 +676,7 @@ class AutoMLPipeline:
             in a platform-compatible way.
         filename : str, optional (default=None)
             Base filename for the saved model. If None, a default name will be used.
-            The final filename will include a version number.
+            The final filename will include a zero-padded version number.
             
         Returns
         -------
@@ -687,6 +687,7 @@ class AutoMLPipeline:
         -----
         This method requires the pipeline to be fitted first.
         The saved file includes the entire pipeline with preprocessing components and model.
+        Version numbers are zero-padded to 4 digits (e.g., 0001, 0034).
         """
         import os
         import joblib
@@ -724,8 +725,8 @@ class AutoMLPipeline:
         # Store version for report generation
         self._pipeline_version = version
         
-        # Create final filename with version
-        final_filename = f"{filename}_v{version}.joblib"
+        # Create final filename with zero-padded version number (4 digits)
+        final_filename = f"{filename}_v{version:04d}.joblib"
         file_path = os.path.join(directory, final_filename)
         
         # Get current datetime in UTC
