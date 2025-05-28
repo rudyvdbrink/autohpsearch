@@ -142,42 +142,6 @@ def target_plot(y, title="Target"):
 
     return ax
 
-    # fig, ax = plt.subplots(figsize=(8, 6))
-    
-    # if hasattr(y, 'values'):
-    #     y_values = y.values
-    # else:
-    #     y_values = np.array(y)
-    
-    # # Check if target is continuous or categorical
-    # unique_vals = np.unique(y_values[~pd.isna(y_values)])  # Exclude NaN values
-    
-    # if len(unique_vals) > 10:
-    #     # Continuous target
-    #     ax.hist(y_values, bins=30, alpha=0.7, edgecolor='black')
-    #     ax.set_title(f'{title} Distribution')
-    #     ax.set_xlabel(title)
-    #     ax.set_ylabel('Frequency')
-    # else:
-    #     # Categorical target
-    #     unique_vals, counts = np.unique(y_values, return_counts=True)
-    #     bars = ax.bar(range(len(unique_vals)), counts, alpha=0.7)
-    #     ax.set_title(f'{title} Distribution')
-    #     ax.set_xlabel(title)
-    #     ax.set_ylabel('Count')
-        
-    #     # Set x-axis labels
-    #     ax.set_xticks(range(len(unique_vals)))
-    #     ax.set_xticklabels([str(val) for val in unique_vals])
-        
-    #     # Add value labels on bars
-    #     for bar, count in zip(bars, counts):
-    #         ax.text(bar.get_x() + bar.get_width()/2, bar.get_height() + max(counts)*0.01,
-    #                 str(count), ha='center', va='bottom')
-    
-    # plt.tight_layout()
-    # return ax
-
 def plot_feature_grid(X: Union[np.ndarray, pd.DataFrame], 
                       cols: int = 4,
                       max_categories: int = 10,

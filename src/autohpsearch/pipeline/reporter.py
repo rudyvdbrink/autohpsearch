@@ -234,8 +234,11 @@ class DataReporter:
             Path to the generated report file
         """
         # Determine version and filename
+        # Determine version and filename
         if version is None:
             version = self._get_next_version()
+        else:
+            version = f"{version:04d}"  # Ensure zero-padding
         
         timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
         report_filename_base = f"data_report_v{version}_{timestamp}"
@@ -575,29 +578,30 @@ class DataReporter:
     def _get_next_version(self):
         """Get the next version number for reports."""
         if not os.path.exists(self.report_directory):
-            return 1
-        
+            return "0001"
+
         # Look for existing report subfolders to determine next version
-        pattern = re.compile(r"data_report_v(\d+)_\d{8}_\d{6}$")
+        pattern = re.compile(r"data_report_v(\d{4})_\d{8}_\d{6}$")
         version = 1
-        
+
         # Check both files (old format) and directories (new format)
         for item in os.listdir(self.report_directory):
             item_path = os.path.join(self.report_directory, item)
-            
+
             # Check directories (new format)
             if os.path.isdir(item_path):
                 match = pattern.match(item)
                 if match:
                     v = int(match.group(1))
                     version = max(version, v + 1)
-            
+
             # Also check old format files for backward compatibility
             elif item.endswith('.md'):
-                old_pattern = re.compile(r"data_report_v(\d+)_.*\.md$")
+                old_pattern = re.compile(r"data_report_v(\d{4})_.*\.md$")
                 match = old_pattern.match(item)
                 if match:
                     v = int(match.group(1))
                     version = max(version, v + 1)
-        
-        return version
+
+        # Return zero-padded version
+        return f"{version:04d}"
