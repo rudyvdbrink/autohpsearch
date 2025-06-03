@@ -511,47 +511,11 @@ class DataReporter:
             # Model hyperparameters
             if hasattr(pipeline.best_model_, 'get_params'):
                 params = pipeline.best_model_.get_params()
-                report_lines.append("### Best Hyperparameters")
+                report_lines.append("### Hyperparameters")
                 
-                # Group parameters for better readability
-                important_params = []
-                other_params = []
-                
-                # Define important parameters for common models
-                important_param_keywords = [
-                    'n_estimators', 'max_depth', 'learning_rate', 'min_samples_split', 
-                    'min_samples_leaf', 'max_features', 'C', 'gamma', 'kernel', 
-                    'alpha', 'l1_ratio', 'hidden_layer_sizes', 'activation', 'solver'
-                ]
-                
+                # Report all parameters
                 for param, value in params.items():
-                    if any(keyword in param.lower() for keyword in important_param_keywords):
-                        important_params.append((param, value))
-                    else:
-                        other_params.append((param, value))
-                
-                # Display important parameters first
-                if important_params:
-                    report_lines.append("**Key Parameters:**")
-                    for param, value in important_params:
-                        report_lines.append(f"- `{param}`: {value}")
-                    
-                    if other_params:
-                        report_lines.append("")
-                        report_lines.append("**Other Parameters:**")
-                        # Limit other parameters to avoid clutter
-                        for param, value in other_params[:10]:  # Show only first 10
-                            report_lines.append(f"- `{param}`: {value}")
-                        
-                        if len(other_params) > 10:
-                            report_lines.append(f"- ... and {len(other_params) - 10} more parameters")
-                else:
-                    # If no important parameters found, show all (up to 15)
-                    for param, value in list(params.items())[:15]:
-                        report_lines.append(f"- `{param}`: {value}")
-                    
-                    if len(params) > 15:
-                        report_lines.append(f"- ... and {len(params) - 15} more parameters")
+                    report_lines.append(f"- `{param}`: {value}")
                 
                 report_lines.append("")
             
