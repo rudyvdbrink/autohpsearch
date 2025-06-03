@@ -126,7 +126,8 @@ class AutoMLPipeline:
         self.results_ = None
         self.best_model_ = None
         self.feature_names_ = None
-        self.transformed_feature_names_ = None  # NEW: Store feature names after preprocessing
+        self.labels_ = None
+        self.transformed_feature_names_ = None  
         self.outlier_mask_ = None
 
         # Store original training data for reporting
@@ -134,6 +135,8 @@ class AutoMLPipeline:
         self.y_train_original_ = None
         self.X_train_processed_ = None
         self.y_train_processed_ = None
+        self.X_test_ = None
+        self.y_test_ = None
     
     def _identify_features(self, X):
         """Identify numerical and categorical features in the dataset."""
@@ -156,6 +159,19 @@ class AutoMLPipeline:
             print(f"Identified {len(numeric_cols)} numerical features and {len(categorical_cols)} categorical features")
         
         return numeric_cols, categorical_cols
+    
+    def _extract_labels(self, y):
+        """Extract unique labels from the target variable."""
+        if hasattr(y, 'unique'):  # Check if y is a pandas Series
+            labels = y.unique().tolist()
+        else:  # Assume y is a numpy array
+            import numpy as np
+            labels = np.unique(y).tolist()
+        
+        if self.verbose:
+            print(f"Extracted {len(labels)} unique labels from the target variable")
+        
+        return labels
     
     def _compute_cardinality(self, X):
         """
@@ -420,6 +436,10 @@ class AutoMLPipeline:
         # Identify numerical and categorical features
         self.numerical_features_, self.categorical_features_ = self._identify_features(X_train)
 
+        # Identify targets
+        if self.task_type == 'classification':
+            self.labels_ = self._extract_labels(y_train)
+
         # If we are using automatic categorical encoding, compute cardinality
         if self.cat_encoding_method == 'auto':
             self._compute_cardinality(X_train)
@@ -479,6 +499,10 @@ class AutoMLPipeline:
         # Store processed training data for reporting
         self.X_train_processed_ = X_train_transformed
         self.y_train_processed_ = y_train
+
+        # Store test data for reporting
+        self.X_test_ = X_test
+        self.y_test_ = y_test
         
         # Step 6: Generate hyperparameter grid
         if self.verbose:
@@ -657,6 +681,8 @@ class AutoMLPipeline:
             pipeline=self,
             X_train_processed=self.X_train_processed_,
             y_train_processed=self.y_train_processed_,
+            X_test=self.X_test_,
+            y_test=self.y_test_,
             version=version
         )
         

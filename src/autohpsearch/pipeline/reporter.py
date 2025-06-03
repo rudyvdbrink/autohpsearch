@@ -8,10 +8,18 @@ import os
 import datetime
 import re
 
+from autohpsearch.utils.context import hush
+
 from autohpsearch.vis.reporting import (plot_feature_grid,
                                         plot_feature_correlation, 
                                         plot_nans, 
                                         target_plot)
+
+from autohpsearch.vis.evaluation_plots import (regression_prediction_plot,
+                                               regression_residual_plot,
+                                               plot_confusion_matrix,
+                                               plot_ROC_curve,
+                                               bar_plot_results_df)
 
 # %% the class
 
@@ -220,6 +228,8 @@ class DataReporter:
                        pipeline=None,
                        X_train_processed=None,
                        y_train_processed=None,
+                       X_test=None,
+                       y_test=None,
                        version=None):
         """
         Generate a comprehensive data report in markdown format.
@@ -236,6 +246,10 @@ class DataReporter:
             Training features after preprocessing
         y_train_processed : array-like, optional
             Training target after preprocessing
+        X_test : array-like or DataFrame
+            Testing features 
+        y_test : array-like
+            Testing target 
         version : int, optional
             Version number for the report
             
@@ -484,7 +498,7 @@ class DataReporter:
                 report_lines.append("*Note: Some post-processing plots could not be generated*")
                 report_lines.append("")
         
-        # Best Model Results Section (moved to the end)
+        # Best Model Results Section 
         if pipeline is not None and hasattr(pipeline, 'best_model_') and pipeline.best_model_ is not None:
             report_lines.append("## Best Model Results")
             report_lines.append("")
@@ -543,7 +557,67 @@ class DataReporter:
                     report_lines.append(f"\n*... and {len(importance_pairs) - 10} more features*")
                 
                 report_lines.append("")
-        
+
+            # If test data is available, add test set analysis
+            if X_test is not None and y_test is not None:
+
+                report_lines.append("### Model Variant Performance and Timing")
+
+                # Plot timing information
+                ax = bar_plot_results_df(pipeline.results_['results'], 'train_time_ms')
+                timing_plot_path = self._save_plot(ax, f"timing_v{version}", report_subfolder)
+                report_lines.append("### Training Time per Model Variant")
+                report_lines.append(f"![Training Time]({timing_plot_path})")
+                report_lines.append("")
+
+                # Plot cross-validation performance
+                ax = bar_plot_results_df(pipeline.results_['results'], 'cv_score')
+                cv_plot_path = self._save_plot(ax, f"cv_performance_v{version}", report_subfolder)
+                report_lines.append("### Cross-Validation Performance")
+                report_lines.append(f"![Cross-Validation Performance]({cv_plot_path})")
+                report_lines.append("")      
+                
+                report_lines.append("### Test Set Analysis")
+
+                # Make predition
+                y_pred = pipeline.predict(X_test)
+
+                # If we are doing a classification task, make the right plots
+                if pipeline.task_type == 'classification':
+                    
+                    # Get labels
+                    labels = pipeline.labels_ if pipeline.labels_ else range(len(np.unique(y_train)))
+                    
+                    # Plot confusion matrix
+                    with hush():
+                        confusion_matrix_figure = plot_confusion_matrix(y_test, y_pred, labels=labels)
+                    confusion_matrix_path = self._save_plot(confusion_matrix_figure, f"confusion_matrix_v{version}", report_subfolder)
+                    report_lines.append("### Confusion Matrix")
+                    report_lines.append(f"![Confusion Matrix]({confusion_matrix_path})")
+                    report_lines.append("")
+
+                    # Plot ROC curve
+                    y_test_proba = pipeline.predict_proba(X_test)
+                    roc_curve_figure = plot_ROC_curve(y_test, y_test_proba, labels=labels)
+                    roc_curve_path = self._save_plot(roc_curve_figure, f"roc_curve_v{version}", report_subfolder)
+                    report_lines.append("### ROC Curve")
+                    report_lines.append(f"![ROC Curve]({roc_curve_path})")
+
+                elif pipeline.task_type == 'regression':
+
+                    # Plot regression prediction plot
+                    regression_prediction_figure = regression_prediction_plot(y_test, y_pred)
+                    regression_prediction_path = self._save_plot(regression_prediction_figure, f"regression_prediction_v{version}", report_subfolder)
+                    report_lines.append("### Regression Prediction Plot")
+                    report_lines.append(f"![Regression Prediction]({regression_prediction_path})")
+
+                    # Plot regression residuals
+                    regression_residual_figure = regression_residual_plot(y_test, y_pred)
+                    regression_residual_path = self._save_plot(regression_residual_figure, f"regression_residuals_v{version}", report_subfolder)
+                    report_lines.append("### Regression Residuals Plot")
+                    report_lines.append(f"![Regression Residuals]({regression_residual_path})")
+                    
+                      
         # Write the report
         with open(report_path, 'w', encoding='utf-8') as f:
             f.write('\n'.join(report_lines))
