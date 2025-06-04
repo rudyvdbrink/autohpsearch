@@ -1,17 +1,33 @@
 from setuptools import setup, find_packages
 
+with open("README.md", "r", encoding="utf-8") as fh:
+    long_description = fh.read()
+
+with open("requirements.txt", "r", encoding="utf-8") as fh:
+    install_requires = [
+        line.strip() for line in fh if line.strip() and not line.startswith("#")
+    ]
+
 setup(
     name="autohpsearch",
-    version="0.2.0",
+    version="0.3.0",
+    author="rudyvdbrink",
+    author_email="",
     description="A package for hyperparameter tuning of models for cross-sectional data.",
-    long_description=open("README.md").read(),
+    long_description=long_description,
     long_description_content_type="text/markdown",
     url="https://github.com/rudyvdbrink/autohpsearch",
-    author="Rudy van den Brink",
-    packages=find_packages(where="autohpsearch"),
-    package_dir={"": "autohpsearch"},
-    install_requires=[
-        line.strip() for line in open("requirements.txt").readlines() if line.strip()
+    packages=find_packages(
+        include=["autohpsearch", "autohpsearch.*"]
+    ),
+    python_requires=">=3.7",
+    install_requires=install_requires,
+    include_package_data=True,
+    classifiers=[
+        "Programming Language :: Python :: 3",
+        "License :: OSI Approved :: MIT License",
+        "Operating System :: OS Independent",
     ],
-    python_requires=">=3.6",
+    license="MIT",
+    keywords="hyperparameter search autotuning machine-learning",
 )
