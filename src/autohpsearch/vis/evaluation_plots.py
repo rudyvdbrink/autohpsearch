@@ -102,6 +102,11 @@ def regression_prediction_plot(y_true, y_score):
     y_true = np.array(y_true).astype(float)
     y_score = np.array(y_score).astype(float)
 
+    #remove singleton dimensions
+    y_true = np.squeeze(y_true)
+    y_score = np.squeeze(y_score)
+
+    #make the plot
     fig = plt.figure(figsize=(6, 5))
     rmse_test  = root_mean_squared_error(y_true,  y_score)
     r          = np.corrcoef(y_true,y_score)[0,1]

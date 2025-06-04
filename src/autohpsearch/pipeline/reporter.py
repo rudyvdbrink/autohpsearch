@@ -13,13 +13,15 @@ from autohpsearch.utils.context import hush
 from autohpsearch.vis.reporting import (plot_feature_grid,
                                         plot_feature_correlation, 
                                         plot_nans, 
-                                        target_plot)
+                                        target_plot,
+                                        plot_design_matrix)
 
 from autohpsearch.vis.evaluation_plots import (regression_prediction_plot,
                                                regression_residual_plot,
                                                plot_confusion_matrix,
                                                plot_ROC_curve,
                                                bar_plot_results_df)
+
 
 # %% the class
 
@@ -485,6 +487,13 @@ class DataReporter:
                 features_post_plot_path = self._save_plot(fig_features_post, f"features_post_v{version}", report_subfolder)
                 report_lines.append("### Feature Distributions (Post-processing)")
                 report_lines.append(f"![Feature Distributions Post]({features_post_plot_path})")
+                report_lines.append("")
+
+                # Design matrix plot (post-processing)
+                design_matrix_figure = plot_design_matrix(X_processed_df)
+                design_matrix_path = self._save_plot(design_matrix_figure, f"design_matrix_post_v{version}", report_subfolder)
+                report_lines.append("### Design Matrix (Post-processing)")
+                report_lines.append(f"![Design Matrix]({design_matrix_path})")
                 report_lines.append("")
                 
                 # Target distribution (post-processing, if different)

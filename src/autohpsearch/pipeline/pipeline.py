@@ -28,9 +28,9 @@ class AutoMLPipeline:
                  outlier_threshold: float = 3.0,
                  num_imputation_strategy: str = 'mean',
                  cat_imputation_strategy: str = 'most_frequent',
-                 cat_encoding_method: str = 'auto',
+                 cat_encoding_method: str = 'onehot',
                  max_onehot_cardinality: int = 10,
-                 scaling_method: str = 'standard',
+                 scaling_method: str = 'minmax',
                  target_transform: str = 'none',
                  model_name: Union[str, List[str], None] = None,
                  scoring: Union[str, Callable] = None,
@@ -57,12 +57,12 @@ class AutoMLPipeline:
         cat_imputation_strategy : str, optional (default='most_frequent')
             Strategy for imputing missing values in categorical features:
             'most_frequent', 'constant'
-        cat_encoding_method : str, optional (default='auto')
+        cat_encoding_method : str, optional (default='onehot')
             Method for encoding categorical variables:
             'onehot', 'ordinal', 'auto' (chooses based on cardinality)
         max_onehot_cardinality : int, optional (default=10)
             Maximum cardinality for one-hot encoding when cat_encoding_method='auto'
-        scaling_method : str, optional (default='standard')
+        scaling_method : str, optional (default='minmax')
             Method for scaling numerical features:
             'standard', 'minmax', 'robust', 'none'
         target_transform : str, optional (default='none')
@@ -145,11 +145,6 @@ class AutoMLPipeline:
             numeric_cols = X.select_dtypes(include=['int', 'float']).columns.tolist()
             categorical_cols = X.select_dtypes(include=['object', 'category', 'bool']).columns.tolist()
             
-            # Check for numeric columns with low cardinality that might be categorical
-            for col in numeric_cols.copy():
-                if X[col].nunique() < min(20, len(X[col]) * 0.05):
-                    categorical_cols.append(col)
-                    numeric_cols.remove(col)
         else:
             # Assume all features are numeric for numpy arrays
             numeric_cols = list(range(X.shape[1]))
@@ -502,8 +497,9 @@ class AutoMLPipeline:
 
         # Store test data for reporting
         self.X_test_ = X_test
-        self.y_test_ = y_test
+        self.y_test_ = y_test       
         
+
         # Step 6: Generate hyperparameter grid
         if self.verbose:
             print("Generating hyperparameter grid...")
@@ -566,7 +562,7 @@ class AutoMLPipeline:
         X_transformed = self.preprocessor_.transform(X)
         
         # Make predictions
-        predictions = self.best_model_.predict(X_transformed)
+        predictions = np.squeeze(self.best_model_.predict(X_transformed))
         
         # Inverse transform target (for regression)
         if self.task_type == 'regression' and self.target_transform != 'none' and self.target_transformer_ is not None:
@@ -864,6 +860,7 @@ class AutoMLPipeline:
         pipeline.categorical_features_ = pipeline_dict['categorical_features']
         pipeline.scoring = pipeline_dict['scoring']
         pipeline.outlier_remover_ = pipeline_dict['outlier_remover']
+        pipeline.remove_outliers = pipeline_dict['outlier_remover'] is not None
         pipeline.results_ = pipeline_dict.get('results')  # Restore hyperparameter search results if available
         
         if verbose:

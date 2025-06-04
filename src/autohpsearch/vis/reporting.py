@@ -408,7 +408,7 @@ def plot_design_matrix(X: Union[np.ndarray, pd.DataFrame],
 
     # Ensure all feature names are shown on x-axis
     ax.set_xticks(np.arange(len(X.columns)) + 0.5)
-    ax.set_xticklabels(X.columns, ha='center')
+    ax.set_xticklabels(X.columns, ha='center',rotation=90)
     
     plt.tight_layout()
     
