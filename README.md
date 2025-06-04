@@ -3,6 +3,8 @@
 
 A Python package for automatic hyperparameter tuning of machine learning models for cross-sectional data. AutoHPSearch simplifies the process of hyperparameter optimization for various machine learning models by providing a unified interface to tune hyperparameters across multiple model types.
 
+AutoHPSearch also contains functionality for full end-to-end pipelines that include cleaning, parameter search, model evaluation, and automated production of data reports in markdown format.  
+
 The search space is navigated with grid, random, or bayesian search. Random search is faster but provides a less comprehensive coverage of the search space. CUDA-enabled computing for neural network implementations is included.
 
 ## Installation
@@ -89,6 +91,23 @@ nn_clf.fit(X_train_scaled, y_train)
 y_pred = nn_clf.predict(X_test_scaled)
 ```
 
+### Creating and Fitting a Full End-To-End Automatic Pipeline
+
+```python
+# Import requirements
+from autohpsearch.datasets.dataloaders import fetch_housing
+from autohpsearch.pipeline.pipeline import AutoMLPipeline
+
+# Load an example dataset
+X_train, X_test, y_train, y_test = fetch_housing()
+
+# Fit the pipeline: this will clean the data run hyperparameter search, train the model, and evaluate it
+pipeline = AutoMLPipeline(task_type='regression')
+pipeline.fit(X_train=X_train,X_test=X_test,y_train=y_train,y_test=y_test)
+
+# Write a report in markdown format that contains information and plots on the data, the model, and the evaluation metrics
+pipeline.generate_data_report()
+```
 
 ## Available Models
 

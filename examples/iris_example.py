@@ -53,9 +53,10 @@ clf_results = tune_hyperparameters(
 )
 
 # Print the results:
-# It is possible (likely) that here some models are tied in performance on the test set. In this case,
-# autohpsearch will additionally sort models by their performance in cross-validation. A third criterion
-# for sorting is the computation time for model predcition.
+# It is possible (likely) that here some models are tied in performance on the test set. 
+# Models are selected based on performance in cross-validation (computed on the trainning data).
+# In this case of ties,autohpsearch will additionally sort models by their training time. 
+# A third criterion for sorting is the computation time for model predcition.
 print(clf_results['results'])
 
 # Get the best model
@@ -67,13 +68,13 @@ y_clf_pred = best_clf.predict(X_test_scaled)
 y_clf_proba = best_clf.predict_proba(X_test_scaled)
 
 # Plot confusion matrix
-plot_confusion_matrix(y_test, y_clf_pred, labels=range(len(target_names)))
+fig = plot_confusion_matrix(y_test, y_clf_pred, labels=range(len(target_names)))
 
 # Plot ROC curve
-plot_ROC_curve(y_test, y_clf_proba, labels=target_names)
+fig = plot_ROC_curve(y_test, y_clf_proba, labels=target_names)
 
-# Plot some timeing information
-bar_plot_results_df(clf_results['results'], 'prediction_time_ms')
+# Plot some timing information
+fig = bar_plot_results_df(clf_results['results'], 'prediction_time_ms')
 
 
 # %% Regression example
@@ -119,9 +120,9 @@ best_reg = reg_results['best_model']
 y_reg_pred = best_reg.predict(X_reg_test_scaled)
 
 # Plot regression prediction plot
-regression_prediction_plot(y_reg_test, y_reg_pred)
+fig = regression_prediction_plot(y_reg_test, y_reg_pred)
 
-# Plot regression residual plot
-regression_residual_plot(y_reg_test, y_reg_pred)
+# Plot regression residuals
+fig = regression_residual_plot(y_reg_test, y_reg_pred)
 
 # %%

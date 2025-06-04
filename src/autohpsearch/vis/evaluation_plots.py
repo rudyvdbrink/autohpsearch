@@ -33,7 +33,7 @@ def plot_confusion_matrix(y_true, y_score, labels):
     print('Balanced accuracy = ' + str(balanced_accuracy_score(y_true,y_score)))
 
     #create subplots
-    _, ax = plt.subplots(figsize=(12, 5))
+    fig, ax = plt.subplots(figsize=(12, 5))
 
     #make the plot square
     ax.set_aspect('equal', 'box')
@@ -48,7 +48,9 @@ def plot_confusion_matrix(y_true, y_score, labels):
     ax.set_xlabel('Predicted Label')
     ax.set_ylabel('True Label')
     ax.set_title('Balanced accuracy = ' + str(np.round(balanced_accuracy_score(y_true,y_score)*100)) + '%')
-    plt.show()
+    # plt.show()
+
+    return fig
 
 def plot_ROC_curve(y_true, y_proba, labels):
     """
@@ -59,7 +61,7 @@ def plot_ROC_curve(y_true, y_proba, labels):
     y_proba (array-like): The predicted probability for each of the labels.
     """
     #create subplots
-    _, ax = plt.subplots(figsize=(12, 5))
+    fig, ax = plt.subplots(figsize=(12, 5))
 
     # Plot the ROC curves for each class
     if len(labels) == 2:
@@ -80,7 +82,9 @@ def plot_ROC_curve(y_true, y_proba, labels):
     ax.set_ylabel('True Positive Rate')
     ax.set_title('ROC curve')
     ax.legend(loc='lower right')
-    plt.show()
+    # plt.show()
+
+    return fig
 
 # %% plots for regression evaluation
 
@@ -98,7 +102,12 @@ def regression_prediction_plot(y_true, y_score):
     y_true = np.array(y_true).astype(float)
     y_score = np.array(y_score).astype(float)
 
-    plt.figure(figsize=(6, 5))
+    #remove singleton dimensions
+    y_true = np.squeeze(y_true)
+    y_score = np.squeeze(y_score)
+
+    #make the plot
+    fig = plt.figure(figsize=(6, 5))
     rmse_test  = root_mean_squared_error(y_true,  y_score)
     r          = np.corrcoef(y_true,y_score)[0,1]
     r2         = r**2
@@ -121,8 +130,10 @@ def regression_prediction_plot(y_true, y_score):
     plt.title(f'RMSE: {rmse_test:.2f}')
     plt.legend()    
     plt.tight_layout()
-    plt.show()
-    plt.close()
+    # plt.show()
+    # plt.close()
+
+    return fig
 
 def regression_residual_plot(y_true, y_score):
     """
@@ -141,13 +152,15 @@ def regression_residual_plot(y_true, y_score):
     residuals = y_true - y_score
 
     # Plot residuals
-    plt.figure(figsize=(8, 4))
+    fig = plt.figure(figsize=(8, 4))
     plt.scatter(y_score, residuals, alpha=0.75)
     plt.axhline(y=0, color='r', linestyle='--')
     plt.xlabel('Predicted Values (days)')
     plt.ylabel('Residuals (days)')
     plt.title('Residual Plot')
-    plt.show()
+    # plt.show()
+
+    return fig
 
 # %% reporting on parameter tuning
 
@@ -171,6 +184,7 @@ def bar_plot_results_df(df, column_name):
     
     # Customize the x-axis labels: replace underscores with spaces and remove _clf/_reg extensions
     formatted_labels = [label.replace('_clf', '').replace('_reg', '').replace('_', ' ').replace('logisticression', 'logistic regression') for label in sorted_df.index]
+    ax.set_xticks(np.arange(len(formatted_labels)))
     ax.set_xticklabels(formatted_labels, rotation=45, ha='right')
     
     # Customize the y-axis label: replace underscores with spaces
