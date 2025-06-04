@@ -3,7 +3,7 @@
 
 A Python package for automatic hyperparameter tuning of machine learning models for cross-sectional data. AutoHPSearch simplifies the process of hyperparameter optimization for various machine learning models by providing a unified interface to tune hyperparameters across multiple model types.
 
-AutoHPSearch also contains functionality for full end-to-end pipelines that include cleaning, parameter search, model evaluation, and automated production of data reports in markdown format.  
+AutoHPSearch also contains functionality for full end-to-end pipelines that include cleaning, parameter search, model evaluation, and automated production of data reports in markdown format ([example here](https://github.com/rudyvdbrink/autohpsearch/blob/main/example_reports/data_report_v0001_20250604_085633.md)).  
 
 The search space is navigated with grid, random, or bayesian search. Random search is faster but provides a less comprehensive coverage of the search space. CUDA-enabled computing for neural network implementations is included.
 
@@ -29,7 +29,8 @@ To enable CUDA you need to manually install the right version of torch+cuda depe
 - [Classification](https://github.com/rudyvdbrink/autohpsearch/blob/main/examples/classification_basic.ipynb) - Demonstrates simple binary classification
 - [Regression](https://github.com/rudyvdbrink/autohpsearch/blob/main/examples/regression_basic.ipynb) - Simple regression example
 - [Neural Network Usage](https://github.com/rudyvdbrink/autohpsearch/blob/main/examples/nn_usage.py) - Syntax examples for using scikit-learn compatible neural networks
-- [Iris example](https://github.com/rudyvdbrink/autohpsearch/blob/main/examples/iris_example.py) - Examples of both classification and regression solving using real data
+- [Iris Example](https://github.com/rudyvdbrink/autohpsearch/blob/main/examples/iris_example.py) - Examples of both classification and regression solving using real data
+- [Pipeline Example](https://github.com/rudyvdbrink/autohpsearch/blob/main/examples/pipeline_example.py) - An example of a full automated end-to-end pipeline
 
 ### Basic Example
 
@@ -104,10 +105,17 @@ X_train, X_test, y_train, y_test = fetch_housing()
 # Fit the pipeline: this will clean the data run hyperparameter search, train the model, and evaluate it
 pipeline = AutoMLPipeline(task_type='regression')
 pipeline.fit(X_train=X_train,X_test=X_test,y_train=y_train,y_test=y_test)
+```
+### Automated Reports on Data Distributions And Model Performance
 
-# Write a report in markdown format that contains information and plots on the data, the model, and the evaluation metrics
+AutoHPsearch can generate a report on the data that includes plots of feature distributions before and after data cleaning, and statistics on requested properties of the data such as the number of outliers etc. It will also include plots for the best performing model to examine its performance on the test set. You can find an example report [here](https://github.com/rudyvdbrink/autohpsearch/blob/main/example_reports/data_report_v0001_20250604_085633.md). To create a report, simply run:
+
+```python
+# Write a report in markdown format 
 pipeline.generate_data_report()
 ```
+
+
 
 ## Available Models
 
