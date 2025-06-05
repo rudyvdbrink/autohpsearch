@@ -169,30 +169,44 @@ class AutoMLPipeline:
         
         return labels
     
-    def _convert_target_to_float(self, y):
+    def _convert_target_to_float(self, y_train, y_test):
         """
-        Convert the target variable to numeric values if it is categorical and return the labels in the same order.
+        Convert the target variables to numeric values if they are categorical and ensure consistent labels across train and test sets.
         
         Parameters
         ----------
-        y : array-like
-            Target variable (e.g., y_train or y_test).
+        y_train : array-like
+            Target variable for training data.
+        y_test : array-like
+            Target variable for testing data.
         
         Returns
         -------
-        y_converted : array-like
-            Target variable converted to numeric values if necessary.
+        y_train_converted : array-like
+            Target variable for training data converted to numeric values if necessary.
+        y_test_converted : array-like
+            Target variable for testing data converted to numeric values if necessary.
         labels : list
             List of labels corresponding to the numeric values.
         """
-        if not np.issubdtype(y.dtype, np.number):  # Check if y is not numeric
+        if not np.issubdtype(y_train.dtype, np.number) or not np.issubdtype(y_test.dtype, np.number):  # Check if either is not numeric
             if self.verbose:
-                print("Converting categorical target variable to numeric values...")
+                print("Converting categorical target variables to numeric values...")
+            
+            # Concatenate y_train and y_test to ensure consistent factorization
+            y_combined = pd.concat([pd.Series(y_train), pd.Series(y_test)], ignore_index=True)
             
             # Use pandas.factorize to convert to numeric values
-            y_converted, labels = pd.factorize(y)
-            return y_converted, labels.tolist()
-        return y, None  # Return as-is if already numeric, with no labels
+            y_combined_converted, labels = pd.factorize(y_combined)
+            
+            # Split back into y_train and y_test
+            y_train_converted = y_combined_converted[:len(y_train)]
+            y_test_converted = y_combined_converted[len(y_train):]
+            
+            return y_train_converted, y_test_converted, labels.tolist()
+        
+        # If both are numeric, return them as-is with no labels
+        return y_train, y_test, None
 
     
     def _compute_cardinality(self, X):
@@ -462,8 +476,7 @@ class AutoMLPipeline:
         if self.task_type == 'classification':
             
             # Convert target to numeric if necessary (for classification)
-            y_train, self.labels_ = self._convert_target_to_float(y_train)
-            y_test, _             = self._convert_target_to_float(y_test)
+            y_train, y_test, self.labels_ = self._convert_target_to_float(y_train=y_train, y_test=y_test)
 
             # If the target was numeric, get labels from training data
             if self.labels_ is None:
