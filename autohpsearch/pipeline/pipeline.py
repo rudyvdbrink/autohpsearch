@@ -1,6 +1,7 @@
 # %% import libraries
 
 import numpy as np
+import pandas as pd
 from typing import List, Union, Callable
 from sklearn.preprocessing import StandardScaler, MinMaxScaler, RobustScaler
 from sklearn.preprocessing import OneHotEncoder, OrdinalEncoder, LabelEncoder
@@ -167,6 +168,32 @@ class AutoMLPipeline:
             print(f"Extracted {len(labels)} unique labels from the target variable")
         
         return labels
+    
+    def _convert_target_to_float(self, y):
+        """
+        Convert the target variable to numeric values if it is categorical and return the labels in the same order.
+        
+        Parameters
+        ----------
+        y : array-like
+            Target variable (e.g., y_train or y_test).
+        
+        Returns
+        -------
+        y_converted : array-like
+            Target variable converted to numeric values if necessary.
+        labels : list
+            List of labels corresponding to the numeric values.
+        """
+        if not np.issubdtype(y.dtype, np.number):  # Check if y is not numeric
+            if self.verbose:
+                print("Converting categorical target variable to numeric values...")
+            
+            # Use pandas.factorize to convert to numeric values
+            y_converted, labels = pd.factorize(y)
+            return y_converted, labels.tolist()
+        return y, None  # Return as-is if already numeric, with no labels
+
     
     def _compute_cardinality(self, X):
         """
@@ -433,7 +460,14 @@ class AutoMLPipeline:
 
         # Identify targets
         if self.task_type == 'classification':
-            self.labels_ = self._extract_labels(y_train)
+            
+            # Convert target to numeric if necessary (for classification)
+            y_train, self.labels_ = self._convert_target_to_float(y_train)
+            y_test, _             = self._convert_target_to_float(y_test)
+
+            # If the target was numeric, get labels from training data
+            if self.labels_ is None:
+                self.labels_ = self._extract_labels(y_train)
 
         # If we are using automatic categorical encoding, compute cardinality
         if self.cat_encoding_method == 'auto':

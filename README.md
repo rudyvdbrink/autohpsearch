@@ -26,8 +26,8 @@ To enable CUDA you need to manually install the right version of torch+cuda depe
 ## Usage
 
 ### Examples Scripts
-- [Classification](https://github.com/rudyvdbrink/autohpsearch/blob/main/examples/classification_basic.ipynb) - Demonstrates simple binary classification
-- [Regression](https://github.com/rudyvdbrink/autohpsearch/blob/main/examples/regression_basic.ipynb) - Simple regression example
+- [Classification](https://github.com/rudyvdbrink/autohpsearch/blob/main/examples/basic_classification.py) - Demonstrates simple binary classification
+- [Regression](https://github.com/rudyvdbrink/autohpsearch/blob/main/examples/basic_regression.py) - Simple regression example
 - [Neural Network Usage](https://github.com/rudyvdbrink/autohpsearch/blob/main/examples/nn_usage.py) - Syntax examples for using scikit-learn compatible neural networks
 - [Iris Example](https://github.com/rudyvdbrink/autohpsearch/blob/main/examples/iris_example.py) - Examples of both classification and regression solving using real data
 - [Pipeline Example](https://github.com/rudyvdbrink/autohpsearch/blob/main/examples/pipeline_example.py) - An example of a full automated end-to-end pipeline
