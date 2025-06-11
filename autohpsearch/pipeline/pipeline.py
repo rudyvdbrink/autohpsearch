@@ -12,7 +12,7 @@ from sklearn.metrics import get_scorer
 
 from autohpsearch.search.hptuing import tune_hyperparameters, generate_hypergrid
 from autohpsearch.pipeline.reporter import DataReporter
-from autohpsearch.pipeline.cleaning import OutlierRemover, TargetTransformer
+from autohpsearch.pipeline.cleaning import OutlierRemover, TargetTransformer, SMOTEApplier
 
 # %% class for an end-to-end pipeline
 
@@ -31,6 +31,8 @@ class AutoMLPipeline:
                  cat_imputation_strategy: str = 'most_frequent',
                  cat_encoding_method: str = 'onehot',
                  max_onehot_cardinality: int = 10,
+                 apply_smote: bool = False,
+                 smote_kwargs: dict = None,
                  scaling_method: str = 'minmax',
                  target_transform: str = 'none',
                  model_name: Union[str, List[str], None] = None,
@@ -63,6 +65,10 @@ class AutoMLPipeline:
             'onehot', 'ordinal', 'auto' (chooses based on cardinality)
         max_onehot_cardinality : int, optional (default=10)
             Maximum cardinality for one-hot encoding when cat_encoding_method='auto'
+        apply_smote : bool, optional
+            Whether to apply SMOTE/SMOTENC/SMOTEN to the training data after outlier removal
+        smote_kwargs : dict, optional
+            Extra keyword arguments for the SMOTEApplier
         scaling_method : str, optional (default='minmax')
             Method for scaling numerical features:
             'standard', 'minmax', 'robust', 'none'
@@ -101,6 +107,10 @@ class AutoMLPipeline:
         
         # Scaling settings
         self.scaling_method = scaling_method
+
+        # SMOTE settings
+        self.apply_smote = apply_smote
+        self.smote_kwargs = smote_kwargs if smote_kwargs is not None else {}
         
         # Target transformation settings
         self.target_transform = target_transform
@@ -441,7 +451,8 @@ class AutoMLPipeline:
     def fit(self, X_train, y_train, X_test, y_test):
         """
         Fit the pipeline on training data and evaluate on test data.
-        
+        Optionally applies SMOTE-based oversampling to the training data just after outlier removal.
+
         Parameters
         ----------
         X_train : array-like or DataFrame of shape (n_samples, n_features)
@@ -452,12 +463,13 @@ class AutoMLPipeline:
             Test features
         y_test : array-like of shape (n_samples,)
             Test target values
-            
+
         Returns
         -------
         self : object
             Returns self
         """
+
         if self.verbose:
             print("Starting AutoML pipeline fitting process...")
 
@@ -473,8 +485,7 @@ class AutoMLPipeline:
         self.numerical_features_, self.categorical_features_ = self._identify_features(X_train)
 
         # Identify targets
-        if self.task_type == 'classification':
-            
+        if self.task_type == 'classification':            
             # Convert target to numeric if necessary (for classification)
             y_train, y_test, self.labels_ = self._convert_target_to_float(y_train=y_train, y_test=y_test)
 
@@ -507,13 +518,28 @@ class AutoMLPipeline:
                 n_removed = y_train_len - len(y_train)
                 print(f"Removed {n_removed} outliers ({n_removed/y_train_len*100:.1f}% of training data)")
         
-        # Step 2: Create preprocessor for missing value imputation, encoding, and scaling
+        # Step 2: Class balancing using SMOTE (if requested)
+        if self.apply_smote:
+            if self.task_type != 'classification':
+                raise ValueError("SMOTE can only be applied to classification tasks")
+
+            if self.verbose:
+                print("Applying SMOTE-based oversampling to the training data...")
+            if self.smote_kwargs is None:
+                self.smote_kwargs = {}
+
+            self.smote_applier_ = SMOTEApplier(pipeline=self, **self.smote_kwargs)
+            X_train, y_train = self.smote_applier_.fit_transform(X_train, y_train)
+            if self.verbose:
+                print(f"Training samples after SMOTE: {len(X_train)}")
+                
+        # Step 3: Create preprocessor for missing value imputation, encoding, and scaling
         if self.verbose:
             print("Creating preprocessing pipeline...")
         
         self.preprocessor_ = self._create_preprocessor()
         
-        # Step 3: Apply target transformation (for regression only)
+        # Step 4: Apply target transformation (for regression only)
         if self.task_type == 'regression' and self.target_transform != 'none':
             if self.verbose:
                 print(f"Applying {self.target_transform} transformation to target variable...")
@@ -521,13 +547,13 @@ class AutoMLPipeline:
             self.target_transformer_ = TargetTransformer(transform_method=self.target_transform)
             y_train = self.target_transformer_.fit_transform(y_train)
         
-        # Step 4: Fit preprocessor on training data
+        # Step 5: Fit preprocessor on training data
         if self.verbose:
             print("Fitting preprocessor on training data...")
         
         X_train_transformed = self.preprocessor_.fit_transform(X_train)
         
-        # Step 5: Extract and store transformed feature names
+        # Step 6: Extract and store transformed feature names
         if self.verbose:
             print("Extracting feature names after preprocessing...")
         
@@ -814,6 +840,9 @@ class AutoMLPipeline:
             'scoring': self.scoring,
             'outlier_remover': self.outlier_remover_ if self.remove_outliers else None,
             'results': self.results_,  # Save hyperparameter search results
+            'apply_smote': self.apply_smote,
+            'smote_kwargs': self.smote_kwargs,
+            'model_name': self.model_name,
             'metadata': {
                 'created_at': datetime.datetime.now().isoformat(),
                 'model_type': type(self.best_model_).__name__,
@@ -909,7 +938,10 @@ class AutoMLPipeline:
         pipeline.outlier_remover_ = pipeline_dict['outlier_remover']
         pipeline.remove_outliers = pipeline_dict['outlier_remover'] is not None
         pipeline.results_ = pipeline_dict.get('results')  # Restore hyperparameter search results if available
-        
+        pipeline.apply_smote = pipeline_dict.get('apply_smote', False)
+        pipeline.smote_kwargs = pipeline_dict.get('smote_kwargs', {})
+        pipeline.model_name = pipeline_dict.get('model_name', None)
+
         if verbose:
             print(f"Pipeline loaded from {file_path}")
             print(f"Model type: {pipeline_dict['metadata']['model_type']}")

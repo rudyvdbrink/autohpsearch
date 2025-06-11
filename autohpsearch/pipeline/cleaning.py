@@ -1,8 +1,11 @@
 # %% import libraries
 
 import numpy as np
+import pandas as pd
+
 from scipy import stats
 from sklearn.base import BaseEstimator, TransformerMixin
+from imblearn.over_sampling import SMOTE, SMOTENC, SMOTEN
 
 # %% classes for data clenaing
 
@@ -289,3 +292,63 @@ class TargetTransformer(BaseEstimator, TransformerMixin):
         else:
             raise ValueError(f"Unknown transformation: {self.transform_method}")
 
+class SMOTEApplier(BaseEstimator, TransformerMixin):
+    """
+    Applies the appropriate SMOTE variant (SMOTE, SMOTENC, or SMOTEN) using feature types from the pipeline.
+    """
+
+    def __init__(self, pipeline, random_state=None, sampling_strategy='auto'):
+        """
+        Parameters
+        ----------
+        pipeline : AutoMLPipeline instance
+            The pipeline instance (should have .numerical_features_ and .categorical_features_)
+        random_state : int, optional
+            Random state for reproducibility
+        sampling_strategy : str or float or dict, optional
+            Sampling strategy for SMOTE variants
+        """
+        self.pipeline = pipeline
+        self.random_state = random_state
+        self.sampling_strategy = sampling_strategy
+        self.smote_ = None
+        self.categorical_features_ = None
+
+    def _detect_feature_types(self, X):
+        # Use the pipeline's feature lists and map to indices if DataFrame
+        if hasattr(X, "columns"):
+            # Use column names from pipeline
+            cat_cols = self.pipeline.categorical_features_
+            num_cols = self.pipeline.numerical_features_
+            # Get indices for categorical columns
+            self.categorical_features_ = [X.columns.get_loc(col) for col in cat_cols]
+            return len(num_cols), len(cat_cols)
+        else:
+            # Assume all float/integer for numpy arrays
+            return X.shape[1], 0
+
+    def fit(self, X, y=None):
+        n_num, n_cat = self._detect_feature_types(X)
+        if n_cat == 0:
+            self.smote_ = SMOTE(random_state=self.random_state, sampling_strategy=self.sampling_strategy)
+        elif n_num == 0:
+            self.smote_ = SMOTEN(random_state=self.random_state, sampling_strategy=self.sampling_strategy)
+        else:
+            self.smote_ = SMOTENC(
+                categorical_features=self.categorical_features_,
+                random_state=self.random_state,
+                sampling_strategy=self.sampling_strategy
+            )
+        self.smote_.fit(X, y)
+        return self
+
+    def transform(self, X, y):
+        X_res, y_res = self.smote_.fit_resample(X, y)
+        if isinstance(X, pd.DataFrame):
+            X_res = pd.DataFrame(X_res, columns=X.columns)
+        if isinstance(y, pd.Series):
+            y_res = pd.Series(y_res, name=y.name)
+        return X_res, y_res
+
+    def fit_transform(self, X, y=None):
+        return self.fit(X, y).transform(X, y)
