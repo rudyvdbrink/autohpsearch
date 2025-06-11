@@ -387,6 +387,9 @@ class DataReporter:
             if pipeline.cat_encoding_method == 'auto':
                 report_lines.append(f"- **Max one-hot cardinality**: {pipeline.max_onehot_cardinality}")
             report_lines.append(f"- **Scaling method**: {pipeline.scaling_method}")
+            if pipeline.task_type == 'classification':
+                report_lines.append(f"- **SMOTE oversampling**: {pipeline.apply_smote}")
+                report_lines.append(f"- **SMOTE kwargs**: {pipeline.smote_kwargs}")
             if pipeline.task_type == 'regression':
                 report_lines.append(f"- **Target transformation**: {pipeline.target_transform}")
             report_lines.append("")

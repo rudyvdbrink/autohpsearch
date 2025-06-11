@@ -840,6 +840,9 @@ class AutoMLPipeline:
             'scoring': self.scoring,
             'outlier_remover': self.outlier_remover_ if self.remove_outliers else None,
             'results': self.results_,  # Save hyperparameter search results
+            'apply_smote': self.apply_smote,
+            'smote_kwargs': self.smote_kwargs,
+            'model_name': self.model_name,
             'metadata': {
                 'created_at': datetime.datetime.now().isoformat(),
                 'model_type': type(self.best_model_).__name__,
@@ -935,7 +938,10 @@ class AutoMLPipeline:
         pipeline.outlier_remover_ = pipeline_dict['outlier_remover']
         pipeline.remove_outliers = pipeline_dict['outlier_remover'] is not None
         pipeline.results_ = pipeline_dict.get('results')  # Restore hyperparameter search results if available
-        
+        pipeline.apply_smote = pipeline_dict.get('apply_smote', False)
+        pipeline.smote_kwargs = pipeline_dict.get('smote_kwargs', {})
+        pipeline.model_name = pipeline_dict.get('model_name', None)
+
         if verbose:
             print(f"Pipeline loaded from {file_path}")
             print(f"Model type: {pipeline_dict['metadata']['model_type']}")

@@ -30,6 +30,10 @@ class TestPipelineSMOTEVariants(unittest.TestCase):
         self.assertTrue(np.all(counts == counts[0]), f"Classes not balanced after SMOTE: {counts}")
         # Check 3 classes present
         self.assertEqual(len(values), 3)
+
+        # write a report
+        pipeline.generate_data_report()
+
         return pipeline
 
     def test_smote_numeric(self):
