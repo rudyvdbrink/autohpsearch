@@ -167,4 +167,4 @@ These models provide flexibility in architecture design and training configurati
 
 ## Author
 
-Rudy van den Brink
+[Rudy van den Brink](https://www.brinkdatascience.com)

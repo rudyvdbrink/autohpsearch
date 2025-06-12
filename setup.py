@@ -12,7 +12,7 @@ setup(
     name="autohpsearch",
     version="0.6.0",
     author="rudyvdbrink",
-    author_email="",
+    author_email="info@brinkdatascience.com",
     description="A package for hyperparameter tuning of models for cross-sectional data.",
     long_description=long_description,
     long_description_content_type="text/markdown",

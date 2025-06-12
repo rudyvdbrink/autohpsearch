@@ -352,13 +352,8 @@ def tune_hyperparameters(X_train, y_train, X_test, y_test, hypergrid=None, scori
         best_model_name = results_df.index[0]
         best_overall_model = best_models[best_model_name]
         
-        # Display appropriate metrics based on task type
-        if task_type == 'classification':
-            metric_display = "balanced accuracy"
-        else:  # regression
-            metric_display = "negative RMSE"
-            
-        print(f"\nBest overall model: {best_model_name} with test {metric_display}: {results_df.loc[best_model_name, 'test_score']:.4f}")
+        # Display appropriate metrics based on task type      
+        print(f"\nBest overall model: {best_model_name} with test score: {results_df.loc[best_model_name, 'test_score']:.4f}")
         
         # Add additional evaluation metrics for regression
         if task_type == 'regression':

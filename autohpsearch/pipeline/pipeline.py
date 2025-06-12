@@ -80,7 +80,7 @@ class AutoMLPipeline:
             If None, all models suitable for task_type will be used.
         scoring : str or callable, optional (default=None)
             Scoring metric to use for model evaluation.
-            Default: 'balanced_accuracy' for classification, 'r2' for regression
+            Default: 'balanced_accuracy' for classification, 'neg_root_mean_squared_error' for regression
         search_type : str, optional (default='random')
             Type of hyperparameter search: 'random', 'grid', 'bayesian'
         n_iter : int, optional (default=30)
@@ -119,7 +119,7 @@ class AutoMLPipeline:
         self.model_name = model_name
         
         if scoring is None:
-            self.scoring = 'balanced_accuracy' if task_type == 'classification' else 'r2'
+            self.scoring = 'balanced_accuracy' if task_type == 'classification' else 'neg_root_mean_squared_error'
         else:
             self.scoring = scoring
         
@@ -546,6 +546,7 @@ class AutoMLPipeline:
             
             self.target_transformer_ = TargetTransformer(transform_method=self.target_transform)
             y_train = self.target_transformer_.fit_transform(y_train)
+            y_test_processed = self.target_transformer_.transform(y_test)
         
         # Step 5: Fit preprocessor on training data
         if self.verbose:
@@ -591,7 +592,11 @@ class AutoMLPipeline:
         # Step 8: Tune hyperparameters
         if self.verbose:
             print(f"Running hyperparameter search with {self.search_type} search...")
-        
+
+        if self.task_type == 'regression' and self.target_transform != 'none' and self.target_transformer_ is not None:
+            y_test = self.target_transformer_.transform(y_test)
+            print("----------"*3)
+
         self.results_ = tune_hyperparameters(
             X_train_transformed, y_train,
             X_test_transformed, y_test,
