@@ -1,4 +1,6 @@
 import unittest
+import matplotlib
+matplotlib.use('Agg')  # Use a non-interactive backend
 
 # Discover and run all tests in the "tests" folder
 test_loader = unittest.TestLoader()

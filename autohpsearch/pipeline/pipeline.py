@@ -206,7 +206,10 @@ class AutoMLPipeline:
             print("Converting categorical target variables to numeric values...")
         
         # Concatenate y_train and y_test to ensure consistent factorization
-        y_combined = pd.concat([pd.Series(y_train), pd.Series(y_test)], ignore_index=True)
+        if y_test is not None:
+            y_combined = pd.concat([pd.Series(y_train), pd.Series(y_test)], ignore_index=True)
+        else:
+            y_combined = pd.Series(y_train)
         
         # Use pandas.factorize to convert to numeric values
         y_combined_converted, labels = pd.factorize(y_combined)
@@ -219,7 +222,11 @@ class AutoMLPipeline:
         
         # Split back into y_train and y_test
         y_train_converted = y_combined_converted[:len(y_train)]
-        y_test_converted = y_combined_converted[len(y_train):]
+
+        if y_test is not None:
+            y_test_converted = y_combined_converted[len(y_train):]
+        else:
+            y_test_converted = None
         
         return y_train_converted, y_test_converted, labels.tolist()       
         
@@ -478,10 +485,9 @@ class AutoMLPipeline:
         else:
             raise ValueError("input_type must be 'original' or 'transformed'")
     
-    def fit(self, X_train, y_train, X_test, y_test):
+    def fit(self, X_train, y_train, X_test, y_test=None):
         """
         Fit the pipeline on training data and evaluate on test data.
-        Optionally applies SMOTE-based oversampling to the training data just after outlier removal.
 
         Parameters
         ----------
@@ -491,9 +497,10 @@ class AutoMLPipeline:
             Training target values
         X_test : array-like or DataFrame of shape (n_samples, n_features)
             Test features
-        y_test : array-like of shape (n_samples,)
+        y_test : array-like of shape (n_samples,), optional (default=None)
             Test target values
-
+            If set to None, the pipeline will not evaluate on test data.
+            
         Returns
         -------
         self : object
@@ -624,8 +631,8 @@ class AutoMLPipeline:
             print(f"Running hyperparameter search with {self.search_type} search...")
 
         if self.task_type == 'regression' and self.target_transform != 'none' and self.target_transformer_ is not None:
-            y_test = self.target_transformer_.transform(y_test)
-            print("----------"*3)
+            if y_test is not None:
+                y_test = self.target_transformer_.transform(y_test)
 
         self.results_ = tune_hyperparameters(
             X_train_transformed, y_train,
@@ -676,15 +683,9 @@ class AutoMLPipeline:
         if self.task_type == 'regression' and self.target_transform != 'none' and self.target_transformer_ is not None:
             predictions = self.target_transformer_.inverse_transform(predictions)
 
-        # Place back the original y-labels if available
+        # Convert numeric predictions back to original labels
         if self.task_type == 'classification' and self.label_mapping_ is not None:
-            # predictions = [self.labels_[int(pred)] for pred in predictions]
-            # # Convert to pandas series
-            # predictions = pd.Series(predictions)
-
-            #predictions = remap_labels(predictions, self.labels_)
             predictions = self._convert_float_to_target(predictions)
-
         
         return predictions
     
@@ -730,37 +731,6 @@ class AutoMLPipeline:
             raise ValueError("Model has not been fitted. Call 'fit' first.")
         
         return self.best_model_
-    
-    def score(self, X, y):
-        """
-        Calculate the score of the best model on given data.
-        
-        Parameters
-        ----------
-        X : array-like or DataFrame of shape (n_samples, n_features)
-            Input features
-        y : array-like of shape (n_samples,)
-            Target values
-            
-        Returns
-        -------
-        score : float
-            Score of the best model on the given data
-        """
-        if self.best_model_ is None:
-            raise ValueError("Model has not been fitted. Call 'fit' first.")
-        
-        # Apply preprocessing
-        X_transformed = self.preprocessor_.transform(X)
-        
-        # Transform target if needed (for regression)
-        if self.task_type == 'regression' and self.target_transform != 'none' and self.target_transformer_ is not None:
-            y_transformed = self.target_transformer_.transform(y)
-            score = get_scorer(self.scoring)(self.best_model_, X_transformed, y_transformed)
-        else:
-            score = get_scorer(self.scoring)(self.best_model_, X_transformed, y)
-        
-        return score
     
     def generate_data_report(self, report_directory: str = "reports", version: int = None):
         """
