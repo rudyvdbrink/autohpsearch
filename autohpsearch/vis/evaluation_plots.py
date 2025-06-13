@@ -11,6 +11,7 @@ from sklearn.metrics import (confusion_matrix,
 import matplotlib.pyplot as plt
 import seaborn as sns
 import numpy as np
+import pandas as pd
 
 # %% plots for classification evaluation
 
@@ -21,13 +22,24 @@ def plot_confusion_matrix(y_true, y_score, labels):
     Parameters:
     y_true (array-like): The true labels.
     y_score (array-like): The predicted labels.
-    labels (array-like): The class labels.
+    labels (array-like): The class labels or dict of label to number mapping.
     """
     
+    # if the labels are a dictionary, assume this is a mapping from labels to integers
+    if isinstance(labels, dict):
+
+        if not isinstance(y_true, np.ndarray):
+            y_true  = pd.Series(y_true).map(labels['to_numeric'])
+        
+        if not isinstance(y_score, np.ndarray):
+            y_score = pd.Series(y_score).map(labels['to_numeric'])
+
+        labels = list(labels['to_numeric'].keys())        
+
     #make sure the arrays are numpy arrays and floats
     y_true = np.array(y_true).astype(float)
-    y_score = np.array(y_score).astype(float)
- 
+    y_score = np.array(y_score).astype(float)   
+
     print(classification_report(y_score,y_true,zero_division=0))
     print('Accuracy = ' + str(np.mean(y_score==y_true)))
     print('Balanced accuracy = ' + str(balanced_accuracy_score(y_true,y_score)))
@@ -42,13 +54,10 @@ def plot_confusion_matrix(y_true, y_score, labels):
     conf_matrix = confusion_matrix(y_true, y_score, normalize='true')
     sns.heatmap(conf_matrix, annot=True, cmap="inferno", vmin=0, vmax=1, 
                 xticklabels=labels, yticklabels=labels, ax=ax)
-    # conf_matrix = confusion_matrix(y_true, y_score)
-    # sns.heatmap(conf_matrix, annot=True, cmap="inferno", 
-    #             xticklabels=labels, yticklabels=labels, ax=ax)
+
     ax.set_xlabel('Predicted Label')
     ax.set_ylabel('True Label')
     ax.set_title('Balanced accuracy = ' + str(np.round(balanced_accuracy_score(y_true,y_score)*100)) + '%')
-    # plt.show()
 
     return fig
 

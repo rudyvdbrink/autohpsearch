@@ -12,6 +12,10 @@ class TestAutoMLPipeline(unittest.TestCase):
         X = pd.DataFrame(np.random.rand(rows, cols), columns=[f'feature_{i}' for i in range(cols)])
         y = np.random.choice([0, 1], size=rows)
 
+        # add labels (yes/no) to the y-variable
+        y = np.where(y == 0, 'no', 'yes')
+        y = pd.Series(y, name='target')
+
         # Add some missing values
         mask = np.random.random((rows, cols)) < 0.05  # 5% missing values
         X = X.mask(mask)

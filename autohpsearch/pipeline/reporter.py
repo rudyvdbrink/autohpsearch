@@ -501,7 +501,7 @@ class DataReporter:
                 
                 # Target distribution (post-processing, if different)
                 if y_train_processed is not None:
-                    ax_target_post = target_plot(y_train_processed, title="Target (Processed)")
+                    ax_target_post = target_plot(y_train_processed, title="Target (Processed)",  labels=pipeline.label_mapping_)
                     target_post_plot_path = self._save_plot(ax_target_post, f"target_post_v{version}", report_subfolder)
                     report_lines.append("### Target Distribution (Post-processing)")
                     report_lines.append(f"![Target Distribution Post]({target_post_plot_path})")
@@ -616,7 +616,7 @@ class DataReporter:
                     
                     # Plot confusion matrix
                     with hush():
-                        confusion_matrix_figure = plot_confusion_matrix(y_test, y_pred, labels=labels)
+                        confusion_matrix_figure = plot_confusion_matrix(y_test, y_pred, labels=pipeline.label_mapping_)
                     confusion_matrix_path = self._save_plot(confusion_matrix_figure, f"confusion_matrix_v{version}", report_subfolder)
                     report_lines.append("### Confusion Matrix")
                     report_lines.append(f"![Confusion Matrix]({confusion_matrix_path})")

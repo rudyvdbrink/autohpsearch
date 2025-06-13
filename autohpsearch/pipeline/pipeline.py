@@ -14,6 +14,7 @@ from autohpsearch.search.hptuing import tune_hyperparameters, generate_hypergrid
 from autohpsearch.pipeline.reporter import DataReporter
 from autohpsearch.pipeline.cleaning import OutlierRemover, TargetTransformer, SMOTEApplier
 
+
 # %% class for an end-to-end pipeline
 
 class AutoMLPipeline:
@@ -138,6 +139,7 @@ class AutoMLPipeline:
         self.best_model_ = None
         self.feature_names_ = None
         self.labels_ = None
+        self.label_mapping_ = None
         self.transformed_feature_names_ = None  
         self.outlier_mask_ = None
 
@@ -182,14 +184,15 @@ class AutoMLPipeline:
     def _convert_target_to_float(self, y_train, y_test):
         """
         Convert the target variables to numeric values if they are categorical and ensure consistent labels across train and test sets.
-        
+        Also creates self.label_mapping_, which keeps track of numerical and string versions of the target.
+
         Parameters
         ----------
         y_train : array-like
             Target variable for training data.
         y_test : array-like
             Target variable for testing data.
-        
+
         Returns
         -------
         y_train_converted : array-like
@@ -199,25 +202,52 @@ class AutoMLPipeline:
         labels : list
             List of labels corresponding to the numeric values.
         """
-        if not np.issubdtype(y_train.dtype, np.number) or not np.issubdtype(y_test.dtype, np.number):  # Check if either is not numeric
-            if self.verbose:
-                print("Converting categorical target variables to numeric values...")
-            
-            # Concatenate y_train and y_test to ensure consistent factorization
-            y_combined = pd.concat([pd.Series(y_train), pd.Series(y_test)], ignore_index=True)
-            
-            # Use pandas.factorize to convert to numeric values
-            y_combined_converted, labels = pd.factorize(y_combined)
-            
-            # Split back into y_train and y_test
-            y_train_converted = y_combined_converted[:len(y_train)]
-            y_test_converted = y_combined_converted[len(y_train):]
-            
-            return y_train_converted, y_test_converted, labels.tolist()
+        if self.verbose:
+            print("Converting categorical target variables to numeric values...")
         
-        # If both are numeric, return them as-is with no labels
-        return y_train, y_test, None
+        # Concatenate y_train and y_test to ensure consistent factorization
+        y_combined = pd.concat([pd.Series(y_train), pd.Series(y_test)], ignore_index=True)
+        
+        # Use pandas.factorize to convert to numeric values
+        y_combined_converted, labels = pd.factorize(y_combined)
+        
+        # Create label mapping dictionary
+        self.label_mapping_ = {
+            "to_numeric": {label: i for i, label in enumerate(labels)},
+            "to_string": {i: label for i, label in enumerate(labels)}
+        }
+        
+        # Split back into y_train and y_test
+        y_train_converted = y_combined_converted[:len(y_train)]
+        y_test_converted = y_combined_converted[len(y_train):]
+        
+        return y_train_converted, y_test_converted, labels.tolist()       
+        
+    def _convert_float_to_target(self, y):
+        """
+        Convert a numeric target variable back to its original categorical labels using self.label_mapping_.
 
+        Parameters
+        ----------
+        y : array-like
+            Numeric target variable to be converted back to categorical labels.
+
+        Returns
+        -------
+        y_converted : array-like
+            Target variable converted back to categorical labels.
+        """
+        if self.verbose:
+            print("Converting numeric target variable back to categorical labels...")
+
+        # Ensure self.label_mapping_ exists
+        if self.label_mapping_ is None or "to_string" not in self.label_mapping_:
+            raise ValueError("Label mapping is not defined. Ensure _convert_target_to_float was called first.")
+
+        # Use the mapping dictionary to convert numeric values back to labels
+        y_converted = pd.Series(y).map(self.label_mapping_["to_string"])
+
+        return y_converted
     
     def _compute_cardinality(self, X):
         """
@@ -546,7 +576,7 @@ class AutoMLPipeline:
             
             self.target_transformer_ = TargetTransformer(transform_method=self.target_transform)
             y_train = self.target_transformer_.fit_transform(y_train)
-            y_test_processed = self.target_transformer_.transform(y_test)
+            #y_test_processed = self.target_transformer_.transform(y_test)
         
         # Step 5: Fit preprocessor on training data
         if self.verbose:
@@ -645,6 +675,16 @@ class AutoMLPipeline:
         # Inverse transform target (for regression)
         if self.task_type == 'regression' and self.target_transform != 'none' and self.target_transformer_ is not None:
             predictions = self.target_transformer_.inverse_transform(predictions)
+
+        # Place back the original y-labels if available
+        if self.task_type == 'classification' and self.label_mapping_ is not None:
+            # predictions = [self.labels_[int(pred)] for pred in predictions]
+            # # Convert to pandas series
+            # predictions = pd.Series(predictions)
+
+            #predictions = remap_labels(predictions, self.labels_)
+            predictions = self._convert_float_to_target(predictions)
+
         
         return predictions
     
@@ -848,6 +888,8 @@ class AutoMLPipeline:
             'apply_smote': self.apply_smote,
             'smote_kwargs': self.smote_kwargs,
             'model_name': self.model_name,
+            'labels': self.labels_,  
+            'label_mapping': self.label_mapping_,
             'metadata': {
                 'created_at': datetime.datetime.now().isoformat(),
                 'model_type': type(self.best_model_).__name__,
@@ -946,6 +988,8 @@ class AutoMLPipeline:
         pipeline.apply_smote = pipeline_dict.get('apply_smote', False)
         pipeline.smote_kwargs = pipeline_dict.get('smote_kwargs', {})
         pipeline.model_name = pipeline_dict.get('model_name', None)
+        pipeline.labels_ = pipeline_dict.get('labels', None)  # Restore labels if available
+        pipeline.label_mapping_ = pipeline_dict.get('label_mapping', None)
 
         if verbose:
             print(f"Pipeline loaded from {file_path}")
