@@ -32,13 +32,36 @@ To enable CUDA you need to manually install the right version of torch+cuda depe
 - [Iris Example](https://github.com/rudyvdbrink/autohpsearch/blob/main/examples/iris_example.py) - Examples of both classification and regression solving using real data
 - [Pipeline Example](https://github.com/rudyvdbrink/autohpsearch/blob/main/examples/pipeline_example.py) - An example of a full automated end-to-end pipeline
 
-### Basic Example
+### Creating and Fitting a Full End-To-End Automatic Pipeline
+
+```python
+# Import requirements
+from autohpsearch.datasets.dataloaders import fetch_housing
+from autohpsearch import AutoMLPipeline
+
+# Load an example dataset
+X_train, X_test, y_train, y_test = fetch_housing()
+
+# Fit the pipeline: this will clean the data run hyperparameter search, train models, and evaluate them
+pipeline = AutoMLPipeline(task_type='regression')
+pipeline.fit(X_train=X_train,X_test=X_test,y_train=y_train,y_test=y_test)
+```
+### Automated Reports on Data Distributions And Model Performance
+
+AutoHPsearch can generate a report on the data that includes plots of feature distributions before and after data cleaning, and statistics on requested properties of the data such as the number of outliers etc. It will also include plots for the best performing model to examine its performance on the test set. You can find an example report [here](https://github.com/rudyvdbrink/autohpsearch/blob/main/example_reports/data_report_v0001_20250612_200805.md). To create a report, simply run:
+
+```python
+# Write a report in markdown format 
+pipeline.generate_data_report()
+```
+
+### Example Classification With Specified Models
 
 ```python
 from sklearn.datasets import make_classification
 from sklearn.model_selection import train_test_split
 
-from autohpsearch.search.hptuing import tune_hyperparameters, generate_hypergrid
+from autohpsearch import tune_hyperparameters, generate_hypergrid
 
 # Generate synthetic data
 X, y = make_classification(n_samples=1000, n_features=10, random_state=42)
@@ -91,31 +114,6 @@ nn_clf.fit(X_train_scaled, y_train)
 # Make predictions
 y_pred = nn_clf.predict(X_test_scaled)
 ```
-
-### Creating and Fitting a Full End-To-End Automatic Pipeline
-
-```python
-# Import requirements
-from autohpsearch.datasets.dataloaders import fetch_housing
-from autohpsearch.pipeline.pipeline import AutoMLPipeline
-
-# Load an example dataset
-X_train, X_test, y_train, y_test = fetch_housing()
-
-# Fit the pipeline: this will clean the data run hyperparameter search, train the model, and evaluate it
-pipeline = AutoMLPipeline(task_type='regression')
-pipeline.fit(X_train=X_train,X_test=X_test,y_train=y_train,y_test=y_test)
-```
-### Automated Reports on Data Distributions And Model Performance
-
-AutoHPsearch can generate a report on the data that includes plots of feature distributions before and after data cleaning, and statistics on requested properties of the data such as the number of outliers etc. It will also include plots for the best performing model to examine its performance on the test set. You can find an example report [here](https://github.com/rudyvdbrink/autohpsearch/blob/main/example_reports/data_report_v0001_20250612_200805.md). To create a report, simply run:
-
-```python
-# Write a report in markdown format 
-pipeline.generate_data_report()
-```
-
-
 
 ## Available Models
 

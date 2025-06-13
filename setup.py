@@ -10,7 +10,7 @@ with open("requirements.txt", "r", encoding="utf-8") as fh:
 
 setup(
     name="autohpsearch",
-    version="0.6.1",
+    version="0.6.2",
     author="rudyvdbrink",
     author_email="info@brinkdatascience.com",
     description="A package for hyperparameter tuning of models for cross-sectional data.",

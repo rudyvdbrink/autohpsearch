@@ -1,13 +1,12 @@
 # %% libraries
 
 import numpy as np
-import matplotlib.pyplot as plt
 from sklearn.datasets import load_iris
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 
 # Import AutoHPSearch functions
-from autohpsearch.search.hptuing import tune_hyperparameters, generate_hypergrid
+from autohpsearch import tune_hyperparameters, generate_hypergrid
 from autohpsearch.vis.evaluation_plots import (    
     regression_prediction_plot,
     regression_residual_plot,

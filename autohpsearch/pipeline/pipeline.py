@@ -866,7 +866,6 @@ class AutoMLPipeline:
                 'version': version,
                 'model_params': self.best_model_.get_params(),
                 'scoring': self.scoring,
-                'saved_by': 'rudyvdbrink',  # Current user's login
                 'saved_at': current_time  # Current UTC date and time
             }
         }
@@ -965,12 +964,8 @@ class AutoMLPipeline:
             print(f"Pipeline loaded from {file_path}")
             print(f"Model type: {pipeline_dict['metadata']['model_type']}")
             print(f"Created at: {pipeline_dict['metadata']['created_at']}")
-            print(f"Version: {pipeline_dict['metadata']['version']}")
-            
-            # Show who saved the model and when
-            if 'saved_by' in pipeline_dict['metadata']:
-                print(f"Saved by: {pipeline_dict['metadata']['saved_by']}")
-                print(f"Saved at: {pipeline_dict['metadata']['saved_at']}")
+            print(f"Version: {pipeline_dict['metadata']['version']}")            
+            print(f"Saved at: {pipeline_dict['metadata']['saved_at']}")
             
             # Show feature name information
             if pipeline.transformed_feature_names_:
