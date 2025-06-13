@@ -13,14 +13,14 @@ class TestPipelineSaveLoad(unittest.TestCase):
             'feature2': np.random.rand(100),
             'feature3': np.random.choice(['A', 'B', 'C'], size=100)
         })
-        self.y_train = pd.Series(np.random.choice([0, 1], size=100))  # Binary target variable
+        self.y_train = pd.Series(np.random.choice(['A', 'B'], size=100))  # Binary target variable
 
         self.X_test = pd.DataFrame({
             'feature1': np.random.rand(50),
             'feature2': np.random.rand(50),
             'feature3': np.random.choice(['A', 'B', 'C'], size=50)
         })
-        self.y_test = pd.Series(np.random.choice([0, 1], size=50))  # Binary target variable
+        self.y_test = pd.Series(np.random.choice(['A', 'B'], size=50))  # Binary target variable
 
         # Initialize the pipeline
         self.pipeline = AutoMLPipeline(
@@ -61,6 +61,7 @@ class TestPipelineSaveLoad(unittest.TestCase):
 
         # Check that the loaded pipeline can make predictions
         self.post_save_predictions = loaded_pipeline.predict(self.X_test)
+
         self.assertEqual(len(self.post_save_predictions), len(self.y_test), "Loaded pipeline failed to make predictions.")
 
         # Check that predictions before and after saving are the same

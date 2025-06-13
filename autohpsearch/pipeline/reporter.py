@@ -501,7 +501,7 @@ class DataReporter:
                 
                 # Target distribution (post-processing, if different)
                 if y_train_processed is not None:
-                    ax_target_post = target_plot(y_train_processed, title="Target (Processed)")
+                    ax_target_post = target_plot(y_train_processed, title="Target (Processed)",  labels=pipeline.label_mapping_)
                     target_post_plot_path = self._save_plot(ax_target_post, f"target_post_v{version}", report_subfolder)
                     report_lines.append("### Target Distribution (Post-processing)")
                     report_lines.append(f"![Target Distribution Post]({target_post_plot_path})")
@@ -510,6 +510,36 @@ class DataReporter:
                 report_lines.append("*Note: Some post-processing plots could not be generated*")
                 report_lines.append("")
         
+        # Overview of the pipeline results
+        if hasattr(pipeline, 'results_') and pipeline.results_ is not None:
+
+            results_df = pipeline.results_['results']
+            
+            # Convert the DataFrame to a Markdown table
+            results_table = results_df.to_markdown(index=True, tablefmt="pipe", floatfmt=".4f")
+            
+            # Add the table to the report
+            report_lines.append("## Model Comparison")
+            report_lines.append("")
+            report_lines.append("### Model Comparison Table")
+            report_lines.append("")
+            report_lines.append(results_table)
+            report_lines.append("")
+
+            # Plot cross-validation performance
+            ax = bar_plot_results_df(pipeline.results_['results'], 'cv_score')
+            cv_plot_path = self._save_plot(ax, f"cv_performance_v{version}", report_subfolder)
+            report_lines.append("### Cross-Validation Performance")
+            report_lines.append(f"![Cross-Validation Performance]({cv_plot_path})")
+            report_lines.append("") 
+
+            # Plot timing information
+            ax = bar_plot_results_df(pipeline.results_['results'], 'train_time_ms')
+            timing_plot_path = self._save_plot(ax, f"timing_v{version}", report_subfolder)
+            report_lines.append("### Training Time per Model Variant")
+            report_lines.append(f"![Training Time]({timing_plot_path})")
+            report_lines.append("")         
+
         # Best Model Results Section 
         if pipeline is not None and hasattr(pipeline, 'best_model_') and pipeline.best_model_ is not None:
             report_lines.append("## Best Model Results")
@@ -571,25 +601,9 @@ class DataReporter:
                 report_lines.append("")
 
             # If test data is available, add test set analysis
-            if X_test is not None and y_test is not None:
-
-                report_lines.append("### Model Variant Performance and Timing")
-
-                # Plot timing information
-                ax = bar_plot_results_df(pipeline.results_['results'], 'train_time_ms')
-                timing_plot_path = self._save_plot(ax, f"timing_v{version}", report_subfolder)
-                report_lines.append("### Training Time per Model Variant")
-                report_lines.append(f"![Training Time]({timing_plot_path})")
-                report_lines.append("")
-
-                # Plot cross-validation performance
-                ax = bar_plot_results_df(pipeline.results_['results'], 'cv_score')
-                cv_plot_path = self._save_plot(ax, f"cv_performance_v{version}", report_subfolder)
-                report_lines.append("### Cross-Validation Performance")
-                report_lines.append(f"![Cross-Validation Performance]({cv_plot_path})")
-                report_lines.append("")      
+            if X_test is not None and y_test is not None:                     
                 
-                report_lines.append("### Test Set Analysis")
+                report_lines.append("## Test Set Analysis")
 
                 # Make predition
                 y_pred = pipeline.predict(X_test)
@@ -602,7 +616,7 @@ class DataReporter:
                     
                     # Plot confusion matrix
                     with hush():
-                        confusion_matrix_figure = plot_confusion_matrix(y_test, y_pred, labels=labels)
+                        confusion_matrix_figure = plot_confusion_matrix(y_test, y_pred, labels=pipeline.label_mapping_)
                     confusion_matrix_path = self._save_plot(confusion_matrix_figure, f"confusion_matrix_v{version}", report_subfolder)
                     report_lines.append("### Confusion Matrix")
                     report_lines.append(f"![Confusion Matrix]({confusion_matrix_path})")

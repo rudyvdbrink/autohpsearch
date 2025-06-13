@@ -14,6 +14,7 @@ from autohpsearch.search.hptuing import tune_hyperparameters, generate_hypergrid
 from autohpsearch.pipeline.reporter import DataReporter
 from autohpsearch.pipeline.cleaning import OutlierRemover, TargetTransformer, SMOTEApplier
 
+
 # %% class for an end-to-end pipeline
 
 class AutoMLPipeline:
@@ -80,7 +81,7 @@ class AutoMLPipeline:
             If None, all models suitable for task_type will be used.
         scoring : str or callable, optional (default=None)
             Scoring metric to use for model evaluation.
-            Default: 'balanced_accuracy' for classification, 'r2' for regression
+            Default: 'balanced_accuracy' for classification, 'neg_root_mean_squared_error' for regression
         search_type : str, optional (default='random')
             Type of hyperparameter search: 'random', 'grid', 'bayesian'
         n_iter : int, optional (default=30)
@@ -119,7 +120,7 @@ class AutoMLPipeline:
         self.model_name = model_name
         
         if scoring is None:
-            self.scoring = 'balanced_accuracy' if task_type == 'classification' else 'r2'
+            self.scoring = 'balanced_accuracy' if task_type == 'classification' else 'neg_root_mean_squared_error'
         else:
             self.scoring = scoring
         
@@ -138,6 +139,7 @@ class AutoMLPipeline:
         self.best_model_ = None
         self.feature_names_ = None
         self.labels_ = None
+        self.label_mapping_ = None
         self.transformed_feature_names_ = None  
         self.outlier_mask_ = None
 
@@ -182,14 +184,15 @@ class AutoMLPipeline:
     def _convert_target_to_float(self, y_train, y_test):
         """
         Convert the target variables to numeric values if they are categorical and ensure consistent labels across train and test sets.
-        
+        Also creates self.label_mapping_, which keeps track of numerical and string versions of the target.
+
         Parameters
         ----------
         y_train : array-like
             Target variable for training data.
         y_test : array-like
             Target variable for testing data.
-        
+
         Returns
         -------
         y_train_converted : array-like
@@ -199,25 +202,59 @@ class AutoMLPipeline:
         labels : list
             List of labels corresponding to the numeric values.
         """
-        if not np.issubdtype(y_train.dtype, np.number) or not np.issubdtype(y_test.dtype, np.number):  # Check if either is not numeric
-            if self.verbose:
-                print("Converting categorical target variables to numeric values...")
-            
-            # Concatenate y_train and y_test to ensure consistent factorization
-            y_combined = pd.concat([pd.Series(y_train), pd.Series(y_test)], ignore_index=True)
-            
-            # Use pandas.factorize to convert to numeric values
-            y_combined_converted, labels = pd.factorize(y_combined)
-            
-            # Split back into y_train and y_test
-            y_train_converted = y_combined_converted[:len(y_train)]
-            y_test_converted = y_combined_converted[len(y_train):]
-            
-            return y_train_converted, y_test_converted, labels.tolist()
+        if self.verbose:
+            print("Converting categorical target variables to numeric values...")
         
-        # If both are numeric, return them as-is with no labels
-        return y_train, y_test, None
+        # Concatenate y_train and y_test to ensure consistent factorization
+        if y_test is not None:
+            y_combined = pd.concat([pd.Series(y_train), pd.Series(y_test)], ignore_index=True)
+        else:
+            y_combined = pd.Series(y_train)
+        
+        # Use pandas.factorize to convert to numeric values
+        y_combined_converted, labels = pd.factorize(y_combined)
+        
+        # Create label mapping dictionary
+        self.label_mapping_ = {
+            "to_numeric": {label: i for i, label in enumerate(labels)},
+            "to_string": {i: label for i, label in enumerate(labels)}
+        }
+        
+        # Split back into y_train and y_test
+        y_train_converted = y_combined_converted[:len(y_train)]
 
+        if y_test is not None:
+            y_test_converted = y_combined_converted[len(y_train):]
+        else:
+            y_test_converted = None
+        
+        return y_train_converted, y_test_converted, labels.tolist()       
+        
+    def _convert_float_to_target(self, y):
+        """
+        Convert a numeric target variable back to its original categorical labels using self.label_mapping_.
+
+        Parameters
+        ----------
+        y : array-like
+            Numeric target variable to be converted back to categorical labels.
+
+        Returns
+        -------
+        y_converted : array-like
+            Target variable converted back to categorical labels.
+        """
+        if self.verbose:
+            print("Converting numeric target variable back to categorical labels...")
+
+        # Ensure self.label_mapping_ exists
+        if self.label_mapping_ is None or "to_string" not in self.label_mapping_:
+            raise ValueError("Label mapping is not defined. Ensure _convert_target_to_float was called first.")
+
+        # Use the mapping dictionary to convert numeric values back to labels
+        y_converted = pd.Series(y).map(self.label_mapping_["to_string"])
+
+        return y_converted
     
     def _compute_cardinality(self, X):
         """
@@ -448,10 +485,9 @@ class AutoMLPipeline:
         else:
             raise ValueError("input_type must be 'original' or 'transformed'")
     
-    def fit(self, X_train, y_train, X_test, y_test):
+    def fit(self, X_train, y_train, X_test, y_test=None):
         """
         Fit the pipeline on training data and evaluate on test data.
-        Optionally applies SMOTE-based oversampling to the training data just after outlier removal.
 
         Parameters
         ----------
@@ -461,9 +497,10 @@ class AutoMLPipeline:
             Training target values
         X_test : array-like or DataFrame of shape (n_samples, n_features)
             Test features
-        y_test : array-like of shape (n_samples,)
+        y_test : array-like of shape (n_samples,), optional (default=None)
             Test target values
-
+            If set to None, the pipeline will not evaluate on test data.
+            
         Returns
         -------
         self : object
@@ -546,6 +583,7 @@ class AutoMLPipeline:
             
             self.target_transformer_ = TargetTransformer(transform_method=self.target_transform)
             y_train = self.target_transformer_.fit_transform(y_train)
+            #y_test_processed = self.target_transformer_.transform(y_test)
         
         # Step 5: Fit preprocessor on training data
         if self.verbose:
@@ -591,7 +629,11 @@ class AutoMLPipeline:
         # Step 8: Tune hyperparameters
         if self.verbose:
             print(f"Running hyperparameter search with {self.search_type} search...")
-        
+
+        if self.task_type == 'regression' and self.target_transform != 'none' and self.target_transformer_ is not None:
+            if y_test is not None:
+                y_test = self.target_transformer_.transform(y_test)
+
         self.results_ = tune_hyperparameters(
             X_train_transformed, y_train,
             X_test_transformed, y_test,
@@ -640,6 +682,10 @@ class AutoMLPipeline:
         # Inverse transform target (for regression)
         if self.task_type == 'regression' and self.target_transform != 'none' and self.target_transformer_ is not None:
             predictions = self.target_transformer_.inverse_transform(predictions)
+
+        # Convert numeric predictions back to original labels
+        if self.task_type == 'classification' and self.label_mapping_ is not None:
+            predictions = self._convert_float_to_target(predictions)
         
         return predictions
     
@@ -685,37 +731,6 @@ class AutoMLPipeline:
             raise ValueError("Model has not been fitted. Call 'fit' first.")
         
         return self.best_model_
-    
-    def score(self, X, y):
-        """
-        Calculate the score of the best model on given data.
-        
-        Parameters
-        ----------
-        X : array-like or DataFrame of shape (n_samples, n_features)
-            Input features
-        y : array-like of shape (n_samples,)
-            Target values
-            
-        Returns
-        -------
-        score : float
-            Score of the best model on the given data
-        """
-        if self.best_model_ is None:
-            raise ValueError("Model has not been fitted. Call 'fit' first.")
-        
-        # Apply preprocessing
-        X_transformed = self.preprocessor_.transform(X)
-        
-        # Transform target if needed (for regression)
-        if self.task_type == 'regression' and self.target_transform != 'none' and self.target_transformer_ is not None:
-            y_transformed = self.target_transformer_.transform(y)
-            score = get_scorer(self.scoring)(self.best_model_, X_transformed, y_transformed)
-        else:
-            score = get_scorer(self.scoring)(self.best_model_, X_transformed, y)
-        
-        return score
     
     def generate_data_report(self, report_directory: str = "reports", version: int = None):
         """
@@ -843,6 +858,8 @@ class AutoMLPipeline:
             'apply_smote': self.apply_smote,
             'smote_kwargs': self.smote_kwargs,
             'model_name': self.model_name,
+            'labels': self.labels_,  
+            'label_mapping': self.label_mapping_,
             'metadata': {
                 'created_at': datetime.datetime.now().isoformat(),
                 'model_type': type(self.best_model_).__name__,
@@ -941,6 +958,8 @@ class AutoMLPipeline:
         pipeline.apply_smote = pipeline_dict.get('apply_smote', False)
         pipeline.smote_kwargs = pipeline_dict.get('smote_kwargs', {})
         pipeline.model_name = pipeline_dict.get('model_name', None)
+        pipeline.labels_ = pipeline_dict.get('labels', None)  # Restore labels if available
+        pipeline.label_mapping_ = pipeline_dict.get('label_mapping', None)
 
         if verbose:
             print(f"Pipeline loaded from {file_path}")

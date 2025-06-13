@@ -12,6 +12,7 @@ X_train, X_test, y_train, y_test = fetch_housing()
 # Fit the pipeline: this will clean the data run hyperparameter search, train the model, and evaluate it
 pipeline = AutoMLPipeline(task_type='regression',
                           remove_outliers=True,
+                          target_transform='log1p',
                           search_type='grid')
 
 pipeline.fit(X_train=X_train,X_test=X_test,y_train=y_train,y_test=y_test)

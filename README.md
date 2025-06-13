@@ -3,7 +3,7 @@
 
 A Python package for automatic hyperparameter tuning of machine learning models for cross-sectional data. AutoHPSearch simplifies the process of hyperparameter optimization for various machine learning models by providing a unified interface to tune hyperparameters across multiple model types.
 
-AutoHPSearch also contains functionality for full end-to-end pipelines that include cleaning, parameter search, model evaluation, and automated production of data reports in markdown format ([example here](https://github.com/rudyvdbrink/autohpsearch/blob/main/example_reports/data_report_v0001_20250604_085633.md)).  
+AutoHPSearch also contains functionality for full end-to-end pipelines that include cleaning, parameter search, model evaluation, and automated production of data reports in markdown format ([example here](https://github.com/rudyvdbrink/autohpsearch/blob/main/example_reports/data_report_v0001_20250612_200805.md)).  
 
 The search space is navigated with grid, random, or bayesian search. Random search is faster but provides a less comprehensive coverage of the search space. CUDA-enabled computing for neural network implementations is included.
 
@@ -108,7 +108,7 @@ pipeline.fit(X_train=X_train,X_test=X_test,y_train=y_train,y_test=y_test)
 ```
 ### Automated Reports on Data Distributions And Model Performance
 
-AutoHPsearch can generate a report on the data that includes plots of feature distributions before and after data cleaning, and statistics on requested properties of the data such as the number of outliers etc. It will also include plots for the best performing model to examine its performance on the test set. You can find an example report [here](https://github.com/rudyvdbrink/autohpsearch/blob/main/example_reports/data_report_v0001_20250604_085633.md). To create a report, simply run:
+AutoHPsearch can generate a report on the data that includes plots of feature distributions before and after data cleaning, and statistics on requested properties of the data such as the number of outliers etc. It will also include plots for the best performing model to examine its performance on the test set. You can find an example report [here](https://github.com/rudyvdbrink/autohpsearch/blob/main/example_reports/data_report_v0001_20250612_200805.md). To create a report, simply run:
 
 ```python
 # Write a report in markdown format 
@@ -167,4 +167,4 @@ These models provide flexibility in architecture design and training configurati
 
 ## Author
 
-Rudy van den Brink
+[Rudy van den Brink](https://www.brinkdatascience.com)

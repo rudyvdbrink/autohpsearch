@@ -88,7 +88,7 @@ def generate_hypergrid(model_name=None, task_type='classification'):
     else:
         raise TypeError("model_name must be None, a string, or a list of strings")
 
-def tune_hyperparameters(X_train, y_train, X_test, y_test, hypergrid=None, scoring=None, cv=5, 
+def tune_hyperparameters(X_train, y_train, X_test, y_test=None, hypergrid=None, scoring=None, cv=5, 
                         task_type='classification', search_type='grid', n_iter=10, verbose=False):
     """
     Perform hyperparameter tuning using grid search for multiple models and return the best model,
@@ -102,8 +102,9 @@ def tune_hyperparameters(X_train, y_train, X_test, y_test, hypergrid=None, scori
         Training labels/targets
     X_test : array-like
         Test features
-    y_test : array-like
+    y_test : array-like, optional (default=None)
         Test labels/targets
+        If set to None, it will not evaluate on test data.
     hypergrid : None, dict, or list of dict, default=None
         The model configuration(s) to tune hyperparameters for.
         This should be the output from generate_hypergrid().
@@ -270,53 +271,57 @@ def tune_hyperparameters(X_train, y_train, X_test, y_test, hypergrid=None, scori
             pred_time_ms = measure_prediction_time(best_model, X_test)
             
             # Get evaluation metric
-            if task_type == 'classification':
-                # Default to balanced accuracy for test evaluation
-                if scoring == 'accuracy' or scoring == classification_metrics['accuracy']:
-                    test_score = accuracy_score(y_test, y_pred)
-                    metric_display = "accuracy"
-                elif scoring == 'precision' or (isinstance(scoring, object) and 'precision' in str(scoring)):
-                    test_score = precision_score(y_test, y_pred, average='weighted')
-                    metric_display = "precision"
-                elif scoring == 'recall' or (isinstance(scoring, object) and 'recall' in str(scoring)):
-                    test_score = recall_score(y_test, y_pred, average='weighted')
-                    metric_display = "recall"
-                elif scoring == 'f1' or (isinstance(scoring, object) and 'f1' in str(scoring)):
-                    test_score = f1_score(y_test, y_pred, average='weighted')
-                    metric_display = "f1"
-                elif scoring == 'roc_auc' or scoring == classification_metrics['roc_auc']:
-                    # Only compute if binary classification
-                    if len(np.unique(y_test)) == 2:
-                        try:
-                            y_pred_proba = best_model.predict_proba(X_test)[:,1]
-                            test_score = roc_auc_score(y_test, y_pred_proba)
-                            metric_display = "roc_auc"
-                        except:
-                            # Fall back to balanced accuracy if roc_auc fails
+            if y_test is not None:
+                if task_type == 'classification':
+                    # Default to balanced accuracy for test evaluation
+                    if scoring == 'accuracy' or scoring == classification_metrics['accuracy']:
+                        test_score = accuracy_score(y_test, y_pred)
+                        metric_display = "accuracy"
+                    elif scoring == 'precision' or (isinstance(scoring, object) and 'precision' in str(scoring)):
+                        test_score = precision_score(y_test, y_pred, average='weighted')
+                        metric_display = "precision"
+                    elif scoring == 'recall' or (isinstance(scoring, object) and 'recall' in str(scoring)):
+                        test_score = recall_score(y_test, y_pred, average='weighted')
+                        metric_display = "recall"
+                    elif scoring == 'f1' or (isinstance(scoring, object) and 'f1' in str(scoring)):
+                        test_score = f1_score(y_test, y_pred, average='weighted')
+                        metric_display = "f1"
+                    elif scoring == 'roc_auc' or scoring == classification_metrics['roc_auc']:
+                        # Only compute if binary classification
+                        if len(np.unique(y_test)) == 2:
+                            try:
+                                y_pred_proba = best_model.predict_proba(X_test)[:,1]
+                                test_score = roc_auc_score(y_test, y_pred_proba)
+                                metric_display = "roc_auc"
+                            except:
+                                # Fall back to balanced accuracy if roc_auc fails
+                                test_score = balanced_accuracy_score(y_test, y_pred)
+                                metric_display = "balanced_accuracy (fallback)"
+                        else:
+                            # Fall back to balanced accuracy for multiclass
                             test_score = balanced_accuracy_score(y_test, y_pred)
                             metric_display = "balanced_accuracy (fallback)"
                     else:
-                        # Fall back to balanced accuracy for multiclass
+                        # Default fallback to balanced_accuracy
                         test_score = balanced_accuracy_score(y_test, y_pred)
-                        metric_display = "balanced_accuracy (fallback)"
-                else:
-                    # Default fallback to balanced_accuracy
-                    test_score = balanced_accuracy_score(y_test, y_pred)
-                    metric_display = "balanced_accuracy"
-            else:  # regression
-                if scoring == 'r2' or scoring == regression_metrics['r2']:
-                    test_score = r2_score(y_test, y_pred)
-                    metric_display = "R²"
-                elif scoring == 'neg_mean_absolute_error' or scoring == regression_metrics['neg_mean_absolute_error']:
-                    test_score = -mean_absolute_error(y_test, y_pred)
-                    metric_display = "negative MAE"
-                elif scoring == 'neg_mean_squared_error' or scoring == regression_metrics['neg_mean_squared_error']:
-                    test_score = -mean_squared_error(y_test, y_pred)
-                    metric_display = "negative MSE"
-                else:  # Default to negative RMSE
-                    # Use negative RMSE to be consistent with scoring metric
-                    test_score = -np.sqrt(mean_squared_error(y_test, y_pred))
-                    metric_display = "negative RMSE"
+                        metric_display = "balanced_accuracy"
+                else:  # regression
+                    if scoring == 'r2' or scoring == regression_metrics['r2']:
+                        test_score = r2_score(y_test, y_pred)
+                        metric_display = "R²"
+                    elif scoring == 'neg_mean_absolute_error' or scoring == regression_metrics['neg_mean_absolute_error']:
+                        test_score = -mean_absolute_error(y_test, y_pred)
+                        metric_display = "negative MAE"
+                    elif scoring == 'neg_mean_squared_error' or scoring == regression_metrics['neg_mean_squared_error']:
+                        test_score = -mean_squared_error(y_test, y_pred)
+                        metric_display = "negative MSE"
+                    else:  # Default to negative RMSE
+                        # Use negative RMSE to be consistent with scoring metric
+                        test_score = -np.sqrt(mean_squared_error(y_test, y_pred))
+                        metric_display = "negative RMSE"
+            else:
+                # If no test set is provided, use the best cross-validation score
+                test_score = np.nan
             
             # Store results
             best_models[model_name] = best_model
@@ -352,13 +357,8 @@ def tune_hyperparameters(X_train, y_train, X_test, y_test, hypergrid=None, scori
         best_model_name = results_df.index[0]
         best_overall_model = best_models[best_model_name]
         
-        # Display appropriate metrics based on task type
-        if task_type == 'classification':
-            metric_display = "balanced accuracy"
-        else:  # regression
-            metric_display = "negative RMSE"
-            
-        print(f"\nBest overall model: {best_model_name} with test {metric_display}: {results_df.loc[best_model_name, 'test_score']:.4f}")
+        # Display appropriate metrics based on task type      
+        print(f"\nBest overall model: {best_model_name} with test score: {results_df.loc[best_model_name, 'test_score']:.4f}")
         
         # Add additional evaluation metrics for regression
         if task_type == 'regression':

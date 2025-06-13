@@ -352,3 +352,4 @@ class SMOTEApplier(BaseEstimator, TransformerMixin):
 
     def fit_transform(self, X, y=None):
         return self.fit(X, y).transform(X, y)
+    

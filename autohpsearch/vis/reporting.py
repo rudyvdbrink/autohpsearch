@@ -121,7 +121,7 @@ def feature_plot(feature: Union[np.ndarray, pd.Series],
     # Return the axes
     return ax
 
-def target_plot(y, title="Target"):
+def target_plot(y, title="Target", labels=None):
     """
     Create a plot showing the distribution of the target variable.
     
@@ -136,7 +136,10 @@ def target_plot(y, title="Target"):
     -------
     ax : matplotlib.axes.Axes
         Axes containing the target plot
-    """
+    """   
+
+    if labels is not None:
+        y  = pd.Series(y).map(labels['to_string'])
 
     ax = feature_plot(y, title=title)
 
