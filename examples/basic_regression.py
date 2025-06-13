@@ -3,7 +3,7 @@
 from sklearn.datasets import make_regression
 from sklearn.model_selection import train_test_split
  
-from autohpsearch.search.hptuing import tune_hyperparameters, generate_hypergrid
+from autohpsearch import tune_hyperparameters, generate_hypergrid
 from autohpsearch.vis.evaluation_plots import regression_prediction_plot, regression_residual_plot
 
 # %% generate data

@@ -1,7 +1,7 @@
 # %% libraries
 
 from autohpsearch.datasets.dataloaders import fetch_housing
-from autohpsearch.pipeline.pipeline import AutoMLPipeline
+from autohpsearch import AutoMLPipeline
 
 # %% Load dataset
 
@@ -13,7 +13,7 @@ X_train, X_test, y_train, y_test = fetch_housing()
 pipeline = AutoMLPipeline(task_type='regression',
                           remove_outliers=True,
                           target_transform='log1p',
-                          search_type='grid')
+                          search_type='random')
 
 pipeline.fit(X_train=X_train,X_test=X_test,y_train=y_train,y_test=y_test)
 
