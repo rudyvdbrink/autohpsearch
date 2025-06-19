@@ -3,11 +3,6 @@
 import numpy as np
 import pandas as pd
 from typing import List, Union, Callable
-from sklearn.preprocessing import StandardScaler, MinMaxScaler, RobustScaler
-from sklearn.preprocessing import OneHotEncoder, OrdinalEncoder
-from sklearn.impute import SimpleImputer, KNNImputer
-from sklearn.compose import ColumnTransformer
-from sklearn.pipeline import Pipeline as SklearnPipeline
 
 from autohpsearch.search.hptuing import tune_hyperparameters, generate_hypergrid
 from autohpsearch.pipeline.reporter import DataReporter
@@ -25,6 +20,7 @@ class AutoMLPipeline:
     def __init__(self,
                  task_type: str = 'classification',
                  remove_outliers: bool = False,
+                 drop_duplicate_rows: bool = False,
                  outlier_method: str = 'zscore',
                  outlier_threshold: float = 3.0,
                  num_imputation_strategy: str = 'mean',
@@ -105,6 +101,9 @@ class AutoMLPipeline:
         self.remove_outliers = remove_outliers
         self.outlier_method = outlier_method
         self.outlier_threshold = outlier_threshold
+
+        # Duplicate row removal
+        self.drop_duplicate_rows = drop_duplicate_rows
         
         # Imputation settings
         self.num_imputation_strategy = num_imputation_strategy
@@ -201,6 +200,7 @@ class AutoMLPipeline:
         # Instantiate a preprocessor
         self.preprocessor_ = Preprocessor(task_type = self.task_type,
                                           remove_outliers = self.remove_outliers,
+                                          drop_duplicate_rows=self.drop_duplicate_rows,
                                           outlier_method = self.outlier_method,
                                           outlier_threshold = self.outlier_threshold,
                                           num_imputation_strategy = self.num_imputation_strategy,
@@ -501,6 +501,7 @@ class AutoMLPipeline:
             'feature_names': self.feature_names_,
             'transformed_feature_names': self.transformed_feature_names_,  # NEW: Save transformed feature names
             'task_type': self.task_type,
+            'drop_duplicate_rows': self.drop_duplicate_rows,
             'numerical_features': self.numerical_features_,
             'categorical_features': self.categorical_features_,
             'scoring': self.scoring,

@@ -441,6 +441,7 @@ class Preprocessor:
     def __init__(self, 
                  task_type: str = 'classification',
                  remove_outliers: bool = False,
+                 drop_duplicate_rows: bool = False,
                  outlier_method: str = 'zscore',
                  outlier_threshold: float = 3.0,
                  num_imputation_strategy: str = 'mean',
@@ -465,6 +466,8 @@ class Preprocessor:
             Type of machine learning task: 'classification' or 'regression'
         remove_outliers : bool, optional (default=False)
             Whether to remove outliers from training data
+        drop_duplicate_rows : bool, optional (default=False)
+            Whether to drop duplicate rows from the training data
         outlier_method : str, optional (default='zscore')
             Method for outlier detection: 'zscore' or 'iqr'
         outlier_threshold : float, optional (default=2.5)
@@ -501,6 +504,7 @@ class Preprocessor:
         """
 
         self.task_type = task_type
+        self.drop_duplicate_rows = drop_duplicate_rows
         self.cat_encoding_method = cat_encoding_method
         self.max_onehot_cardinality = max_onehot_cardinality
         self.num_imputation_strategy = num_imputation_strategy
@@ -526,6 +530,7 @@ class Preprocessor:
         self.transformed_feature_names_ = None
         self.outlier_remover_ = None
         self.columns_to_drop_ = None
+        self.num_rows_dropped_ = None
         self.preprocessor_ = None
 
     def preprocess(self, X_train, y_train, X_test, y_test=None):
@@ -563,8 +568,39 @@ class Preprocessor:
         # If we are using automatic categorical encoding, compute cardinality
         if self.cat_encoding_method == 'auto':
             self._compute_cardinality(X_train)
+
+        # Step 1: Drop duplicate rows (if requested)
+        if self.drop_duplicate_rows:
+            if self.verbose:
+                print("Dropping duplicate rows from training data...")
+
+            convert_to_dataframe = False
+            converted_to_series = False
+            
+            # If X_train is a numpy array, convert it to DataFrame temporarily
+            if isinstance(X_train, np.ndarray):
+                X_train = pd.DataFrame(X_train, columns=[f"feature_{i}" for i in range(X_train.shape[1])])
+                convert_to_dataframe = True
+
+            if isinstance(y_train, np.ndarray):    
+                y_train = pd.Series(y_train, name='target')
+                converted_to_series = True
+            
+            initial_shape = X_train.shape
+            X_train = X_train.drop_duplicates()
+            y_train = y_train[X_train.index]
+            self.num_rows_dropped_ = initial_shape[0] - X_train.shape[0]
+            if self.verbose:
+                print(f"Dropped {self.num_rows_dropped_} duplicate rows from training data ({self.num_rows_dropped_/initial_shape[0]*100:.1f}% of training data)")
         
-        # Step 1: Remove outliers (optional, only from training data)
+            # If we converted to DataFrame, convert back to numpy array
+            if convert_to_dataframe:
+                X_train = X_train.to_numpy()
+
+            if converted_to_series:
+                y_train = y_train.to_numpy()
+
+        # Step 2: Remove outliers (optional, only from training data)
         if self.remove_outliers:
             if self.verbose:
                 print(f"Removing outliers using {self.outlier_method} method...")
@@ -585,7 +621,7 @@ class Preprocessor:
                 n_removed = y_train_len - len(y_train)
                 print(f"Removed {n_removed} outliers ({n_removed/y_train_len*100:.1f}% of training data)")
         
-        # Step 2: Class balancing using SMOTE (if requested)
+        # Step 3: Class balancing using SMOTE (if requested)
         if self.apply_smote:
             if self.task_type != 'classification':
                 raise ValueError("SMOTE can only be applied to classification tasks")
@@ -600,7 +636,7 @@ class Preprocessor:
             if self.verbose:
                 print(f"Training samples after SMOTE: {len(X_train)}")
                 
-        # Step 3: Create preprocessor for missing value imputation, encoding, and scaling
+        # Step 4: Create preprocessor for missing value imputation, encoding, and scaling
         if self.verbose:
             print("Fitting preprocessor on the data...")
         
@@ -608,7 +644,7 @@ class Preprocessor:
         X_train_transformed = self.preprocessor_.fit_transform(X_train)
         X_test_transformed  = self.preprocessor_.transform(X_test)
         
-        # Step 4: Apply target transformation (for regression only)
+        # Step 5: Apply target transformation (for regression only)
         if self.task_type == 'regression' and self.target_transform != 'none':
             if self.verbose:
                 print(f"Applying {self.target_transform} transformation to target variable...")
@@ -622,7 +658,7 @@ class Preprocessor:
                 y_test = self.target_transformer_.transform(y_test)
         
         
-        # Step 5: Extract and store transformed feature names
+        # Step 6: Extract and store transformed feature names
         if self.verbose:
             print("Extracting feature names after preprocessing...")
         
@@ -637,7 +673,7 @@ class Preprocessor:
         X_train_transformed = pd.DataFrame(X_train_transformed, columns=self.transformed_feature_names_)
         X_test_transformed  = pd.DataFrame(X_test_transformed, columns=self.transformed_feature_names_)
 
-        # Step 6: Filter features
+        # Step 7: Filter features
         if self.filter_features:
             self.filter_ = FeatureFilter(thresh=self.filter_threshold, method=self.filter_method)
             if self.verbose:

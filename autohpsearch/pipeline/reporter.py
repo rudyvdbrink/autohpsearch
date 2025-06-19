@@ -378,6 +378,7 @@ class DataReporter:
             report_lines.append("### Preprocessing Settings")
             report_lines.append(f"- **Task type**: {pipeline.task_type}")
             report_lines.append(f"- **Remove outliers**: {pipeline.remove_outliers}")
+            report_lines.append(f"- **Drop duplicate rows**: {pipeline.drop_duplicate_rows}")
             if pipeline.filter_features:
                 report_lines.append(f"- **Feature filtering**: {pipeline.filter_features}")
                 report_lines.append(f"- **Feature correlation threshold**: {pipeline.filter_threshold}")
@@ -431,7 +432,11 @@ class DataReporter:
                 removed_samples = pre_stats['n_samples'] - post_stats['n_samples']
                 removed_pct = (removed_samples / pre_stats['n_samples']) * 100
                 report_lines.append(f"- **Samples removed**: {removed_samples:,} ({removed_pct:.2f}%)")
-            
+
+                if pipeline.drop_duplicate_rows:
+                    num_rows_dropped = pipeline.preprocessor_.num_rows_dropped_
+                    print(f"- **Rows dropped due to duplicates**: {num_rows_dropped:,}")
+
             # Show changes in feature count
             if post_stats['n_features'] != pre_stats['n_features']:
                 feature_change = post_stats['n_features'] - pre_stats['n_features']
