@@ -41,7 +41,7 @@ class TestAutoMLPipelineRegression(unittest.TestCase):
     def test_missing_values_handling(self):
         """Test missing value handling."""
         self.pipeline.fit(self.X_train, self.y_train, self.X_test, self.y_test)
-        self.assertFalse(np.isnan(self.pipeline.X_train_processed_).any(), "Missing values were not handled properly.")
+        self.assertFalse(np.isnan(self.pipeline.X_train_processed_).any().any(), "Missing values were not handled properly.")
 
     def test_categorical_encoding(self):
         """Test categorical encoding."""

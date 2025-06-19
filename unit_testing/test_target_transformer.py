@@ -2,7 +2,8 @@ import unittest
 import numpy as np
 import pandas as pd
 
-from autohpsearch.pipeline.pipeline import TargetTransformer
+from autohpsearch.pipeline.cleaning import TargetTransformer
+
 class TestTargetTransformer(unittest.TestCase):
     """Unit tests for TargetTransformer class."""
     

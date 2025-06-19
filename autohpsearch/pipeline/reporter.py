@@ -378,6 +378,9 @@ class DataReporter:
             report_lines.append("### Preprocessing Settings")
             report_lines.append(f"- **Task type**: {pipeline.task_type}")
             report_lines.append(f"- **Remove outliers**: {pipeline.remove_outliers}")
+            if pipeline.filter_features:
+                report_lines.append(f"- **Feature filtering**: {pipeline.filter_features}")
+                report_lines.append(f"- **Feature correlation threshold**: {pipeline.filter_threshold}")
             if pipeline.remove_outliers:
                 report_lines.append(f"- **Outlier method**: {pipeline.outlier_method}")
                 report_lines.append(f"- **Outlier threshold**: {pipeline.outlier_threshold}")
@@ -446,29 +449,16 @@ class DataReporter:
                     report_lines.append(f"- **Total features**: {len(transformed_feature_names)}")
                     report_lines.append(f"- **First 10**: {', '.join(f'`{name}`' for name in transformed_feature_names[:10])}")
                     report_lines.append(f"- **Last 10**: {', '.join(f'`{name}`' for name in transformed_feature_names[-10:])}")
-                
-                # Show feature mapping if available
-                if pipeline and hasattr(pipeline, 'feature_names_') and pipeline.feature_names_:
-                    report_lines.append("")
-                    report_lines.append("### Feature Mapping")
-                    report_lines.append("**Original → Transformed:**")
-                    original_names = pipeline.feature_names_
-                    
-                    # Show mapping for the first few features
-                    if len(original_names) <= 10:
-                        for orig in original_names:
-                            # Find transformed features that correspond to this original feature
-                            matching_transformed = [t for t in transformed_feature_names if orig in t or t.startswith(orig)]
-                            if matching_transformed:
-                                if len(matching_transformed) == 1:
-                                    report_lines.append(f"- `{orig}` → `{matching_transformed[0]}`")
-                                else:
-                                    report_lines.append(f"- `{orig}` → {len(matching_transformed)} features: {', '.join(f'`{t}`' for t in matching_transformed[:3])}")
-                                    if len(matching_transformed) > 3:
-                                        report_lines.append(f"  - ... and {len(matching_transformed) - 3} more")
-                    else:
-                        report_lines.append(f"*Mapping available for {len(original_names)} original features*")
-                
+                                
+                report_lines.append("")
+
+            if pipeline and pipeline.filter_features:
+                report_lines.append("### Feature Filtering")
+                if pipeline.columns_to_drop_ is not None:
+                    report_lines.append(f"- **Number of features removed**: {len(pipeline.columns_to_drop_)}")
+                    report_lines.append(f"- **Removed features**: {', '.join(f'`{col}`' for col in pipeline.columns_to_drop_)}")
+                else:
+                    report_lines.append("- **No features were removed**")
                 report_lines.append("")
             
             try:
@@ -606,7 +596,7 @@ class DataReporter:
                 report_lines.append("## Test Set Analysis")
 
                 # Make predition
-                y_pred = pipeline.predict(X_test)
+                y_pred = pipeline.predict(pipeline.X_test_original_)
 
                 # If we are doing a classification task, make the right plots
                 if pipeline.task_type == 'classification':
@@ -623,7 +613,7 @@ class DataReporter:
                     report_lines.append("")
 
                     # Plot ROC curve
-                    y_test_proba = pipeline.predict_proba(X_test)
+                    y_test_proba = pipeline.predict_proba(pipeline.X_test_original_)
                     roc_curve_figure = plot_ROC_curve(y_test, y_test_proba, labels=labels)
                     roc_curve_path = self._save_plot(roc_curve_figure, f"roc_curve_v{version}", report_subfolder)
                     report_lines.append("### ROC Curve")
