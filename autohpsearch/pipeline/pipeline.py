@@ -140,6 +140,27 @@ class AutoMLPipeline:
         self.n_iter = n_iter
         self.cv = cv
         self.verbose = verbose
+
+        # Make a dictionary to store the settings for the preprocessor
+        self.preprocessor_params = {
+            'task_type': self.task_type,
+            'remove_outliers': self.remove_outliers,
+            'drop_duplicate_rows': self.drop_duplicate_rows,
+            'outlier_method': self.outlier_method,
+            'outlier_threshold': self.outlier_threshold,
+            'num_imputation_strategy': self.num_imputation_strategy,
+            'cat_imputation_strategy': self.cat_imputation_strategy,
+            'cat_encoding_method': self.cat_encoding_method,
+            'max_onehot_cardinality': self.max_onehot_cardinality,
+            'apply_smote': self.apply_smote,
+            'smote_kwargs': self.smote_kwargs,
+            'scaling_method': self.scaling_method,
+            'filter_features': self.filter_features,
+            'filter_threshold': self.filter_threshold,
+            'filter_method': self.filter_method,
+            'target_transform': self.target_transform,
+            'verbose': self.verbose
+        }
         
         # Initialized during fit
         self.numerical_features_ = None
@@ -198,28 +219,11 @@ class AutoMLPipeline:
         self.y_test_original_  = y_test.copy() if y_test is not None and hasattr(y_test, 'copy') else y_test
 
         # Instantiate a preprocessor
-        self.preprocessor_ = Preprocessor(task_type = self.task_type,
-                                          remove_outliers = self.remove_outliers,
-                                          drop_duplicate_rows=self.drop_duplicate_rows,
-                                          outlier_method = self.outlier_method,
-                                          outlier_threshold = self.outlier_threshold,
-                                          num_imputation_strategy = self.num_imputation_strategy,
-                                          cat_imputation_strategy = self.cat_imputation_strategy,
-                                          cat_encoding_method = self.cat_encoding_method,
-                                          max_onehot_cardinality = self.max_onehot_cardinality,
-                                          apply_smote = self.apply_smote,
-                                          smote_kwargs = self.smote_kwargs,
-                                          scaling_method = self.scaling_method,
-                                          filter_features = self.filter_features,
-                                          filter_threshold = self.filter_threshold,
-                                          filter_method = self.filter_method,
-                                          target_transform = self.target_transform,
-                                          verbose = self.verbose
-                                          )
-        
+        self.preprocessor_ = Preprocessor(**self.preprocessor_params)
         # Clean the data
         X_train_processed, y_train_processed, X_test_processed, y_test_processed = self.preprocessor_.preprocess(X_train, y_train, X_test, y_test)
 
+        # Store data for reporting
         self.X_train_processed_ = X_train_processed
         self.y_train_processed_ = y_train_processed
         self.X_test_processed_  = X_test_processed
@@ -495,26 +499,20 @@ class AutoMLPipeline:
         
         # Create a dictionary with all important components
         pipeline_dict = {
+            **self.preprocessor_params,  # Unpack all fields from the preprocessing dictionary
+            'model_name': self.model_name,
             'preprocessor': self.preprocessor_,
             'best_model': self.best_model_,
             'target_transformer': self.target_transformer_,
             'feature_names': self.feature_names_,
             'transformed_feature_names': self.transformed_feature_names_,  # NEW: Save transformed feature names
-            'task_type': self.task_type,
-            'drop_duplicate_rows': self.drop_duplicate_rows,
             'numerical_features': self.numerical_features_,
             'categorical_features': self.categorical_features_,
             'scoring': self.scoring,
             'outlier_remover': self.outlier_remover_ if self.remove_outliers else None,
             'results': self.results_,  # Save hyperparameter search results
-            'apply_smote': self.apply_smote,
-            'smote_kwargs': self.smote_kwargs,
-            'model_name': self.model_name,
-            'labels': self.labels_,  
+            'labels': self.labels_,
             'label_mapping': self.label_mapping_,
-            'filter_features': self.filter_features,
-            'filter_threshold': self.filter_threshold,
-            'filter_method': self.filter_method,
             'columns_to_drop': self.columns_to_drop_,
             'metadata': {
                 'created_at': datetime.datetime.now().isoformat(),
