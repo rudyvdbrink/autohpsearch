@@ -2,7 +2,7 @@ import unittest
 import numpy as np
 import pandas as pd
 
-from autohpsearch.pipeline.pipeline import OutlierRemover
+from autohpsearch.pipeline.cleaning import OutlierRemover
 
 class TestOutlierRemover(unittest.TestCase):
     def setUp(self):

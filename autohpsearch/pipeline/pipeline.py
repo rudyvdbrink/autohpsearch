@@ -4,15 +4,14 @@ import numpy as np
 import pandas as pd
 from typing import List, Union, Callable
 from sklearn.preprocessing import StandardScaler, MinMaxScaler, RobustScaler
-from sklearn.preprocessing import OneHotEncoder, OrdinalEncoder, LabelEncoder
+from sklearn.preprocessing import OneHotEncoder, OrdinalEncoder
 from sklearn.impute import SimpleImputer, KNNImputer
 from sklearn.compose import ColumnTransformer
 from sklearn.pipeline import Pipeline as SklearnPipeline
-from sklearn.metrics import get_scorer
 
 from autohpsearch.search.hptuing import tune_hyperparameters, generate_hypergrid
 from autohpsearch.pipeline.reporter import DataReporter
-from autohpsearch.pipeline.cleaning import OutlierRemover, TargetTransformer, SMOTEApplier
+from autohpsearch.pipeline.cleaning import Preprocessor
 
 
 # %% class for an end-to-end pipeline
@@ -35,6 +34,9 @@ class AutoMLPipeline:
                  apply_smote: bool = False,
                  smote_kwargs: dict = None,
                  scaling_method: str = 'minmax',
+                 filter_features: bool = False,
+                 filter_threshold: float = 0.95,
+                 filter_method: str = 'spearman',
                  target_transform: str = 'none',
                  model_name: Union[str, List[str], None] = None,
                  scoring: Union[str, Callable] = None,
@@ -73,6 +75,12 @@ class AutoMLPipeline:
         scaling_method : str, optional (default='minmax')
             Method for scaling numerical features:
             'standard', 'minmax', 'robust', 'none'
+        filter_features : bool, optional (default=False)
+            Whether to filter features based on correlation
+        filter_threshold : float, optional (default=0.95)
+            Threshold for feature filtering (only used if filter_features=True)
+        filter_method : str, optional (default='spearman')
+            Method for feature filtering: 'spearman', 'pearson', 'kendall'
         target_transform : str, optional (default='none')
             Transformation to apply to the target (for regression only):
             'none', 'log', 'log1p', 'sqrt'
@@ -112,6 +120,11 @@ class AutoMLPipeline:
         # SMOTE settings
         self.apply_smote = apply_smote
         self.smote_kwargs = smote_kwargs if smote_kwargs is not None else {}
+
+        # Feature filtering settings
+        self.filter_features = filter_features
+        self.filter_threshold = filter_threshold
+        self.filter_method = filter_method
         
         # Target transformation settings
         self.target_transform = target_transform
@@ -142,349 +155,18 @@ class AutoMLPipeline:
         self.label_mapping_ = None
         self.transformed_feature_names_ = None  
         self.outlier_mask_ = None
+        self.columns_to_drop_ = None
 
-        # Store original training data for reporting
+        # Store data for reporting
         self.X_train_original_ = None
         self.y_train_original_ = None
         self.X_train_processed_ = None
         self.y_train_processed_ = None
-        self.X_test_ = None
-        self.y_test_ = None
-    
-    def _identify_features(self, X):
-        """Identify numerical and categorical features in the dataset."""
-        if hasattr(X, 'select_dtypes'):
-            # DataFrame
-            numeric_cols = X.select_dtypes(include=['int', 'float']).columns.tolist()
-            categorical_cols = X.select_dtypes(include=['object', 'category', 'bool']).columns.tolist()
-            
-        else:
-            # Assume all features are numeric for numpy arrays
-            numeric_cols = list(range(X.shape[1]))
-            categorical_cols = []
-        
-        if self.verbose:
-            print(f"Identified {len(numeric_cols)} numerical features and {len(categorical_cols)} categorical features")
-        
-        return numeric_cols, categorical_cols
-    
-    def _extract_labels(self, y):
-        """Extract unique labels from the target variable."""
-        if hasattr(y, 'unique'):  # Check if y is a pandas Series
-            labels = y.unique().tolist()
-        else:  # Assume y is a numpy array
-            import numpy as np
-            labels = np.unique(y).tolist()
-        
-        if self.verbose:
-            print(f"Extracted {len(labels)} unique labels from the target variable")
-        
-        return labels
-    
-    def _convert_target_to_float(self, y_train, y_test):
-        """
-        Convert the target variables to numeric values if they are categorical and ensure consistent labels across train and test sets.
-        Also creates self.label_mapping_, which keeps track of numerical and string versions of the target.
+        self.X_test_original_ = None
+        self.y_test_original_ = None
+        self.X_test_processed_ = None
+        self.y_test_processed_ = None
 
-        Parameters
-        ----------
-        y_train : array-like
-            Target variable for training data.
-        y_test : array-like
-            Target variable for testing data.
-
-        Returns
-        -------
-        y_train_converted : array-like
-            Target variable for training data converted to numeric values if necessary.
-        y_test_converted : array-like
-            Target variable for testing data converted to numeric values if necessary.
-        labels : list
-            List of labels corresponding to the numeric values.
-        """
-        if self.verbose:
-            print("Converting categorical target variables to numeric values...")
-        
-        # Concatenate y_train and y_test to ensure consistent factorization
-        if y_test is not None:
-            y_combined = pd.concat([pd.Series(y_train), pd.Series(y_test)], ignore_index=True)
-        else:
-            y_combined = pd.Series(y_train)
-        
-        # Use pandas.factorize to convert to numeric values
-        y_combined_converted, labels = pd.factorize(y_combined)
-        
-        # Create label mapping dictionary
-        self.label_mapping_ = {
-            "to_numeric": {label: i for i, label in enumerate(labels)},
-            "to_string": {i: label for i, label in enumerate(labels)}
-        }
-        
-        # Split back into y_train and y_test
-        y_train_converted = y_combined_converted[:len(y_train)]
-
-        if y_test is not None:
-            y_test_converted = y_combined_converted[len(y_train):]
-        else:
-            y_test_converted = None
-        
-        return y_train_converted, y_test_converted, labels.tolist()       
-        
-    def _convert_float_to_target(self, y):
-        """
-        Convert a numeric target variable back to its original categorical labels using self.label_mapping_.
-
-        Parameters
-        ----------
-        y : array-like
-            Numeric target variable to be converted back to categorical labels.
-
-        Returns
-        -------
-        y_converted : array-like
-            Target variable converted back to categorical labels.
-        """
-        if self.verbose:
-            print("Converting numeric target variable back to categorical labels...")
-
-        # Ensure self.label_mapping_ exists
-        if self.label_mapping_ is None or "to_string" not in self.label_mapping_:
-            raise ValueError("Label mapping is not defined. Ensure _convert_target_to_float was called first.")
-
-        # Use the mapping dictionary to convert numeric values back to labels
-        y_converted = pd.Series(y).map(self.label_mapping_["to_string"])
-
-        return y_converted
-    
-    def _compute_cardinality(self, X):
-        """
-        Compute cardinality of categorical features and determine which features
-        should use one-hot encoding vs. ordinal encoding.
-        
-        Parameters
-        ----------
-        X : array-like or DataFrame
-            Input features to analyze for cardinality
-        
-        Returns
-        -------
-        self : object
-            Returns self with onehot_features_ and ordinal_features_ attributes set
-        """
-        if not self.categorical_features_:
-            self.onehot_features_ = []
-            self.ordinal_features_ = []
-            return self
-        
-        # Calculate cardinality for each categorical feature
-        cardinalities = {}
-        
-        if hasattr(X, 'iloc'):  # DataFrame
-            for col in self.categorical_features_:
-                cardinalities[col] = X[col].nunique()
-        else:  # numpy array
-            for i in self.categorical_features_:
-                cardinalities[i] = len(np.unique(X[:, i]))
-        
-        # Split features based on cardinality threshold
-        self.onehot_features_ = [feat for feat, card in cardinalities.items() 
-                            if card <= self.max_onehot_cardinality]
-        
-        self.ordinal_features_ = [feat for feat, card in cardinalities.items() 
-                                if card > self.max_onehot_cardinality]
-        
-        if self.verbose:
-            print(f"Using one-hot encoding for {len(self.onehot_features_)} categorical features")
-            print(f"Using ordinal encoding for {len(self.ordinal_features_)} categorical features")
-    
-        return self
-    
-    def _create_preprocessor(self):
-        """Create a preprocessing pipeline based on the settings."""
-        transformers = []
-        
-        # Numerical feature preprocessing
-        num_steps = []
-        
-        # Imputation for numerical features
-        if self.num_imputation_strategy == 'knn':
-            num_imputer = KNNImputer(n_neighbors=5)
-        else:
-            num_imputer = SimpleImputer(strategy=self.num_imputation_strategy)
-        
-        num_steps.append(('imputer', num_imputer))
-        
-        # Scaling for numerical features
-        if self.scaling_method == 'standard':
-            num_steps.append(('scaler', StandardScaler()))
-        elif self.scaling_method == 'minmax':
-            num_steps.append(('scaler', MinMaxScaler()))
-        elif self.scaling_method == 'robust':
-            num_steps.append(('scaler', RobustScaler()))
-        
-        if self.numerical_features_:
-            transformers.append((
-                'num', SklearnPipeline(num_steps), self.numerical_features_
-            ))
-        
-        # Categorical feature preprocessing
-        if self.categorical_features_:
-            # Handle different encoding methods for categorical features
-            if self.cat_encoding_method == 'onehot':
-                # Use one-hot encoding for all categorical features
-                cat_transformer = SklearnPipeline([
-                    ('imputer', SimpleImputer(strategy=self.cat_imputation_strategy)),
-                    ('encoder', OneHotEncoder(handle_unknown='ignore', sparse_output=False))
-                ])
-                transformers.append(('cat', cat_transformer, self.categorical_features_))
-                
-            elif self.cat_encoding_method == 'ordinal':
-                # Use ordinal encoding for all categorical features
-                cat_transformer = SklearnPipeline([
-                    ('imputer', SimpleImputer(strategy=self.cat_imputation_strategy)),
-                    ('encoder', OrdinalEncoder(handle_unknown='use_encoded_value', unknown_value=-1))
-                ])
-                transformers.append(('cat', cat_transformer, self.categorical_features_))
-                
-            elif self.cat_encoding_method == 'auto':
-                # Use mixed encoding based on feature cardinality (computed earlier)
-                cat_encoders = []
-                
-                # Handle one-hot encoded features
-                if self.onehot_features_:
-                    onehot_transformer = SklearnPipeline([
-                        ('imputer', SimpleImputer(strategy=self.cat_imputation_strategy)),
-                        ('encoder', OneHotEncoder(handle_unknown='ignore', sparse_output=False))
-                    ])
-                    transformers.append(('cat_onehot', onehot_transformer, self.onehot_features_))
-                
-                # Handle ordinal encoded features
-                if self.ordinal_features_:
-                    ordinal_transformer = SklearnPipeline([
-                        ('imputer', SimpleImputer(strategy=self.cat_imputation_strategy)),
-                        ('encoder', OrdinalEncoder(handle_unknown='use_encoded_value', unknown_value=-1))
-                    ])
-                    transformers.append(('cat_ordinal', ordinal_transformer, self.ordinal_features_))
-        
-        preprocessor = ColumnTransformer(
-            transformers=transformers,
-            remainder='drop'
-        )
-        
-        return preprocessor
-    
-    def _extract_feature_names(self):
-        """
-        Extract feature names from the fitted preprocessor.
-        
-        Returns
-        -------
-        list
-            List of feature names after preprocessing
-        """
-        if self.preprocessor_ is None:
-            return []
-        
-        feature_names = []
-        
-        # Iterate through each transformer in the ColumnTransformer
-        for transformer_name, transformer, feature_indices in self.preprocessor_.transformers_:
-            if transformer_name == 'remainder':
-                continue
-                
-            # Get the feature names for this transformer
-            if transformer_name == 'num':
-                # Numerical features keep their original names
-                if isinstance(feature_indices, list):
-                    # Feature names were provided
-                    if all(isinstance(idx, str) for idx in feature_indices):
-                        num_feature_names = feature_indices
-                    else:
-                        # Integer indices, create generic names
-                        num_feature_names = [f'num_feature_{idx}' for idx in feature_indices]
-                else:
-                    # Single feature
-                    num_feature_names = [str(feature_indices)]
-                
-                feature_names.extend(num_feature_names)
-                
-            elif transformer_name in ['cat', 'cat_onehot']:
-                # Categorical features with one-hot encoding
-                try:
-                    # Try to get feature names from the encoder
-                    encoder = transformer.named_steps['encoder']
-                    if hasattr(encoder, 'get_feature_names_out'):
-                        # sklearn >= 1.0
-                        input_features = feature_indices if isinstance(feature_indices, list) else [str(feature_indices)]
-                        cat_feature_names = encoder.get_feature_names_out(input_features).tolist()
-                    elif hasattr(encoder, 'get_feature_names'):
-                        # sklearn < 1.0
-                        input_features = feature_indices if isinstance(feature_indices, list) else [str(feature_indices)]
-                        cat_feature_names = encoder.get_feature_names(input_features).tolist()
-                    else:
-                        # Fallback: estimate based on categories
-                        if hasattr(encoder, 'categories_'):
-                            cat_feature_names = []
-                            for i, (feature, categories) in enumerate(zip(feature_indices, encoder.categories_)):
-                                for category in categories:
-                                    cat_feature_names.append(f'{feature}_{category}')
-                        else:
-                            # Ultimate fallback
-                            cat_feature_names = [f'cat_feature_{i}' for i in range(len(feature_indices))]
-                except:
-                    # If all else fails, create generic names
-                    cat_feature_names = [f'cat_feature_{i}' for i in range(len(feature_indices))]
-                
-                feature_names.extend(cat_feature_names)
-                
-            elif transformer_name == 'cat_ordinal':
-                # Categorical features with ordinal encoding keep original names
-                if isinstance(feature_indices, list):
-                    # Feature names were provided
-                    if all(isinstance(idx, str) for idx in feature_indices):
-                        ordinal_feature_names = feature_indices
-                    else:
-                        # Integer indices, create generic names
-                        ordinal_feature_names = [f'ordinal_feature_{idx}' for idx in feature_indices]
-                else:
-                    # Single feature
-                    ordinal_feature_names = [str(feature_indices)]
-                
-                feature_names.extend(ordinal_feature_names)
-        
-        return feature_names
-    
-    def get_feature_names(self, input_type='transformed'):
-        """
-        Get feature names for the pipeline.
-        
-        Parameters
-        ----------
-        input_type : str, optional (default='transformed')
-            Type of feature names to return:
-            - 'original': Original feature names before preprocessing
-            - 'transformed': Feature names after preprocessing
-            
-        Returns
-        -------
-        list
-            List of feature names
-        """
-        if input_type == 'original':
-            if self.feature_names_ is not None:
-                return self.feature_names_
-            else:
-                return [f'feature_{i}' for i in range(len(self.numerical_features_) + len(self.categorical_features_))]
-        
-        elif input_type == 'transformed':
-            if self.transformed_feature_names_ is not None:
-                return self.transformed_feature_names_
-            else:
-                return []
-        
-        else:
-            raise ValueError("input_type must be 'original' or 'transformed'")
-    
     def fit(self, X_train, y_train, X_test, y_test=None):
         """
         Fit the pipeline on training data and evaluate on test data.
@@ -510,106 +192,48 @@ class AutoMLPipeline:
         if self.verbose:
             print("Starting AutoML pipeline fitting process...")
 
-        # Store original training data for reporting
+        # Store original data for reporting
         self.X_train_original_ = X_train.copy() if hasattr(X_train, 'copy') else X_train
         self.y_train_original_ = y_train.copy() if hasattr(y_train, 'copy') else y_train
-        
-        # Store original feature names if available
-        if hasattr(X_train, 'columns'):
-            self.feature_names_ = X_train.columns.tolist()                
+        self.X_test_original_  = X_test.copy() if hasattr(X_test, 'copy') else X_test
+        self.y_test_original_  = y_test.copy() if y_test is not None and hasattr(y_test, 'copy') else y_test
 
-        # Identify numerical and categorical features
-        self.numerical_features_, self.categorical_features_ = self._identify_features(X_train)
+        # Instantiate a preprocessor
+        self.preprocessor_ = Preprocessor(task_type = self.task_type,
+                                          remove_outliers = self.remove_outliers,
+                                          outlier_method = self.outlier_method,
+                                          outlier_threshold = self.outlier_threshold,
+                                          num_imputation_strategy = self.num_imputation_strategy,
+                                          cat_imputation_strategy = self.cat_imputation_strategy,
+                                          cat_encoding_method = self.cat_encoding_method,
+                                          max_onehot_cardinality = self.max_onehot_cardinality,
+                                          apply_smote = self.apply_smote,
+                                          smote_kwargs = self.smote_kwargs,
+                                          scaling_method = self.scaling_method,
+                                          filter_features = self.filter_features,
+                                          filter_threshold = self.filter_threshold,
+                                          filter_method = self.filter_method,
+                                          target_transform = self.target_transform,
+                                          verbose = self.verbose
+                                          )
+        
+        # Clean the data
+        X_train_processed, y_train_processed, X_test_processed, y_test_processed = self.preprocessor_.preprocess(X_train, y_train, X_test, y_test)
 
-        # Identify targets
-        if self.task_type == 'classification':            
-            # Convert target to numeric if necessary (for classification)
-            y_train, y_test, self.labels_ = self._convert_target_to_float(y_train=y_train, y_test=y_test)
+        self.X_train_processed_ = X_train_processed
+        self.y_train_processed_ = y_train_processed
+        self.X_test_processed_  = X_test_processed
+        self.y_test_processed_  = y_test_processed
 
-            # If the target was numeric, get labels from training data
-            if self.labels_ is None:
-                self.labels_ = self._extract_labels(y_train)
-
-        # If we are using automatic categorical encoding, compute cardinality
-        if self.cat_encoding_method == 'auto':
-            self._compute_cardinality(X_train)
-        
-        # Step 1: Remove outliers (optional, only from training data)
-        if self.remove_outliers:
-            if self.verbose:
-                print(f"Removing outliers using {self.outlier_method} method...")
-            
-            self.outlier_remover_ = OutlierRemover(
-                method=self.outlier_method,
-                threshold=self.outlier_threshold
-            )
-            
-            # Get N for reference
-            y_train_len = len(y_train)
-            
-            # Fit and transform on training data only
-            self.outlier_remover_.fit(X_train)
-            X_train, y_train = self.outlier_remover_.transform(X_train, y_train)
-            
-            if self.verbose:
-                n_removed = y_train_len - len(y_train)
-                print(f"Removed {n_removed} outliers ({n_removed/y_train_len*100:.1f}% of training data)")
-        
-        # Step 2: Class balancing using SMOTE (if requested)
-        if self.apply_smote:
-            if self.task_type != 'classification':
-                raise ValueError("SMOTE can only be applied to classification tasks")
-
-            if self.verbose:
-                print("Applying SMOTE-based oversampling to the training data...")
-            if self.smote_kwargs is None:
-                self.smote_kwargs = {}
-
-            self.smote_applier_ = SMOTEApplier(pipeline=self, **self.smote_kwargs)
-            X_train, y_train = self.smote_applier_.fit_transform(X_train, y_train)
-            if self.verbose:
-                print(f"Training samples after SMOTE: {len(X_train)}")
-                
-        # Step 3: Create preprocessor for missing value imputation, encoding, and scaling
-        if self.verbose:
-            print("Creating preprocessing pipeline...")
-        
-        self.preprocessor_ = self._create_preprocessor()
-        
-        # Step 4: Apply target transformation (for regression only)
-        if self.task_type == 'regression' and self.target_transform != 'none':
-            if self.verbose:
-                print(f"Applying {self.target_transform} transformation to target variable...")
-            
-            self.target_transformer_ = TargetTransformer(transform_method=self.target_transform)
-            y_train = self.target_transformer_.fit_transform(y_train)
-            #y_test_processed = self.target_transformer_.transform(y_test)
-        
-        # Step 5: Fit preprocessor on training data
-        if self.verbose:
-            print("Fitting preprocessor on training data...")
-        
-        X_train_transformed = self.preprocessor_.fit_transform(X_train)
-        
-        # Step 6: Extract and store transformed feature names
-        if self.verbose:
-            print("Extracting feature names after preprocessing...")
-        
-        self.transformed_feature_names_ = self._extract_feature_names()
-        
-        if self.verbose and self.transformed_feature_names_:
-            print(f"Extracted {len(self.transformed_feature_names_)} feature names after preprocessing")
-            if len(self.transformed_feature_names_) <= 20:
-                print(f"Feature names: {self.transformed_feature_names_}")
-
-        # Store processed training data for reporting
-        self.X_train_processed_ = X_train_transformed
-        self.y_train_processed_ = y_train
-
-        # Store test data for reporting
-        self.X_test_ = X_test
-        self.y_test_ = y_test       
-        
+        # Store variables from preprocessor
+        self.labels_ = self.preprocessor_.labels_
+        self.label_mapping_ = self.preprocessor_.label_mapping_
+        self.feature_names_ = self.preprocessor_.feature_names_
+        self.transformed_feature_names_ = self.preprocessor_.transformed_feature_names_
+        self.numerical_features_ = self.preprocessor_.numerical_features_
+        self.categorical_features_ = self.preprocessor_.categorical_features_
+        self.outlier_remover_ = self.preprocessor_.outlier_remover_
+        self.columns_to_drop_ = self.preprocessor_.columns_to_drop_
 
         # Step 6: Generate hyperparameter grid
         if self.verbose:
@@ -619,24 +243,10 @@ class AutoMLPipeline:
             model_name=self.model_name,
             task_type=self.task_type
         )
-        
-        # Step 7: Apply preprocessor to test data
-        if self.verbose:
-            print("Transforming test data...")
-        
-        X_test_transformed = self.preprocessor_.transform(X_test)
-        
-        # Step 8: Tune hyperparameters
-        if self.verbose:
-            print(f"Running hyperparameter search with {self.search_type} search...")
-
-        if self.task_type == 'regression' and self.target_transform != 'none' and self.target_transformer_ is not None:
-            if y_test is not None:
-                y_test = self.target_transformer_.transform(y_test)
 
         self.results_ = tune_hyperparameters(
-            X_train_transformed, y_train,
-            X_test_transformed, y_test,
+            X_train_processed, y_train_processed,
+            X_test_processed, y_test_processed,
             hypergrid=hypergrid,
             scoring=self.scoring,
             cv=self.cv,
@@ -673,8 +283,7 @@ class AutoMLPipeline:
         if self.best_model_ is None:
             raise ValueError("Model has not been fitted. Call 'fit' first.")
         
-        # Apply preprocessing
-        X_transformed = self.preprocessor_.transform(X)
+        X_transformed = self.apply_preprocessing(X)
         
         # Make predictions
         predictions = np.squeeze(self.best_model_.predict(X_transformed))
@@ -685,7 +294,7 @@ class AutoMLPipeline:
 
         # Convert numeric predictions back to original labels
         if self.task_type == 'classification' and self.label_mapping_ is not None:
-            predictions = self._convert_float_to_target(predictions)
+            predictions = self.preprocessor_._convert_float_to_target(predictions)
         
         return predictions
     
@@ -713,11 +322,22 @@ class AutoMLPipeline:
             raise ValueError("The best model does not support probability predictions")
         
         # Apply preprocessing
-        X_transformed = self.preprocessor_.transform(X)
+        X_transformed = self.apply_preprocessing(X)
         
         # Return probability predictions
         return self.best_model_.predict_proba(X_transformed)
     
+    def apply_preprocessing(self, X):
+        # Apply preprocessing
+        X_transformed = self.preprocessor_.preprocessor_.transform(X)
+        feature_names = self.preprocessor_._extract_feature_names()
+        X_transformed = pd.DataFrame(X_transformed, columns=feature_names)
+
+        if self.filter_features and self.preprocessor_.filter_ is not None:
+            X_transformed = self.preprocessor_.filter_.filter(X_transformed)
+
+        return X_transformed
+
     def get_results(self):
         """Return the results of the hyperparameter search."""
         if self.results_ is None:
@@ -732,6 +352,37 @@ class AutoMLPipeline:
         
         return self.best_model_
     
+    def get_feature_names(self, input_type='transformed'):
+        """
+        Get feature names for the pipeline.
+        
+        Parameters
+        ----------
+        input_type : str, optional (default='transformed')
+            Type of feature names to return:
+            - 'original': Original feature names before preprocessing
+            - 'transformed': Feature names after preprocessing
+            
+        Returns
+        -------
+        list
+            List of feature names
+        """
+        if input_type == 'original':
+            if self.feature_names_ is not None:
+                return self.feature_names_
+            else:
+                return [f'feature_{i}' for i in range(len(self.numerical_features_) + len(self.categorical_features_))]
+        
+        elif input_type == 'transformed':
+            if self.transformed_feature_names_ is not None:
+                return self.transformed_feature_names_
+            else:
+                return []
+        
+        else:
+            raise ValueError("input_type must be 'original' or 'transformed'")
+        
     def generate_data_report(self, report_directory: str = "reports", version: int = None):
         """
         Generate a comprehensive data report in markdown format.
@@ -765,8 +416,8 @@ class AutoMLPipeline:
             pipeline=self,
             X_train_processed=self.X_train_processed_,
             y_train_processed=self.y_train_processed_,
-            X_test=self.X_test_,
-            y_test=self.y_test_,
+            X_test=self.X_test_original_,
+            y_test=self.y_test_processed_,
             version=version
         )
         
@@ -860,6 +511,10 @@ class AutoMLPipeline:
             'model_name': self.model_name,
             'labels': self.labels_,  
             'label_mapping': self.label_mapping_,
+            'filter_features': self.filter_features,
+            'filter_threshold': self.filter_threshold,
+            'filter_method': self.filter_method,
+            'columns_to_drop': self.columns_to_drop_,
             'metadata': {
                 'created_at': datetime.datetime.now().isoformat(),
                 'model_type': type(self.best_model_).__name__,
@@ -959,6 +614,9 @@ class AutoMLPipeline:
         pipeline.model_name = pipeline_dict.get('model_name', None)
         pipeline.labels_ = pipeline_dict.get('labels', None)  # Restore labels if available
         pipeline.label_mapping_ = pipeline_dict.get('label_mapping', None)
+        pipeline.filter_features = pipeline_dict.get('filter_features', False)
+        pipeline.filter_threshold = pipeline_dict.get('filter_threshold', 0.95)
+        pipeline.filter_method = pipeline_dict.get('filter_method', 'spearman')
 
         if verbose:
             print(f"Pipeline loaded from {file_path}")
@@ -972,7 +630,6 @@ class AutoMLPipeline:
                 print(f"Loaded {len(pipeline.transformed_feature_names_)} transformed feature names")
         
         return pipeline
-
 
 # Example usage:
 if __name__ == "__main__":
