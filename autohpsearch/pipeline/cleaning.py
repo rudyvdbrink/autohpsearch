@@ -2,6 +2,7 @@
 
 import numpy as np
 import pandas as pd
+import re
 
 from scipy import stats
 from sklearn.base import BaseEstimator, TransformerMixin
@@ -14,7 +15,116 @@ from sklearn.impute import SimpleImputer, KNNImputer
 from sklearn.compose import ColumnTransformer
 from sklearn.pipeline import Pipeline as SklearnPipeline
 
-# %% Classes for data clenaing steps
+from bs4 import BeautifulSoup
+from textblob import TextBlob
+import unicodedata
+import contractions
+import stanza
+
+# %% Classes for data cleaning steps
+
+class TextCleaner:
+    def __init__(self, 
+                 named_entity_recognition=False, 
+                 remove_html_tags=False, 
+                 remove_urls=False, 
+                 remove_email_addresses=False, 
+                 remove_special_characters=False, 
+                 remove_numbers=False, 
+                 whitespace_normalization=False, 
+                 correct_encoding_issues=False, 
+                 expand_contractions=False, 
+                 spelling_correction=False):
+        """
+        Initialize the TextCleaner with specified cleaning steps.
+        """
+        self.steps = {
+            "named_entity_recognition": named_entity_recognition,
+            "remove_html_tags": remove_html_tags,
+            "remove_urls": remove_urls,
+            "remove_email_addresses": remove_email_addresses,
+            "remove_special_characters": remove_special_characters,
+            "remove_numbers": remove_numbers,
+            "whitespace_normalization": whitespace_normalization,
+            "correct_encoding_issues": correct_encoding_issues,
+            "expand_contractions": expand_contractions,
+            "spelling_correction": spelling_correction
+        }
+
+        if self.steps["named_entity_recognition"]:                
+                stanza.download('en')  # Ensure the English model is downloaded
+                self.ner_pipeline = stanza.Pipeline(lang='en', processors='tokenize,ner')
+        
+        if self.steps["remove_special_characters"]:
+            # Define a regex pattern to match special characters
+            self.char_pattern = r"[^\w\s]"
+
+    def transform(self, text_series):
+        """
+        Apply the specified cleaning steps to a pandas Series containing text.
+        """
+        # Ensure the input is a pandas Series
+        if not isinstance(text_series, pd.Series):
+            # Convert to pandas series
+            text_series = pd.Series(text_series)        
+
+        def clean_text(text):
+            # Skip processing if the text is NaN or not a valid string
+            if pd.isna(text) or not isinstance(text, str) or text.strip() == "":
+                return text
+            
+            if self.steps["named_entity_recognition"]:
+                text = self._apply_NER(text)
+            
+            if self.steps["remove_html_tags"]:
+                text = BeautifulSoup(text, "html.parser").get_text()
+            
+            if self.steps["remove_urls"]:
+                text = re.sub(r"http\S+|www\S+|https\S+", "", text, flags=re.MULTILINE)
+            
+            if self.steps["remove_email_addresses"]:
+               text = re.sub(r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b", "(EMAIL ADDRESS)", text)
+            
+            if self.steps["remove_special_characters"]:
+                text = re.sub(self.char_pattern, " ", text)
+            
+            if self.steps["remove_numbers"]:
+                text = re.sub(r"\d+", "", text)
+            
+            if self.steps["whitespace_normalization"]:
+                text = re.sub(r"\s+", " ", text).strip()
+            
+            if self.steps["correct_encoding_issues"]:
+                text = unicodedata.normalize("NFKD", text)
+            
+            if self.steps["expand_contractions"]:
+                text = contractions.fix(text)
+            
+            if self.steps["spelling_correction"]:
+                text = str(TextBlob(text).correct())
+            
+            return text
+
+        return text_series.apply(clean_text)
+    
+    def _apply_NER(self, text):
+        """
+        Apply Named Entity Recognition (NER) to the input text using Stanza.
+        Replace named entities in the text with their placeholders.
+        """        
+        
+        # Process the text with the Stanza pipeline
+        doc = self.ner_pipeline(text)
+
+        # Replace named entities with their placeholders
+        for sentence in doc.sentences:
+            for ent in sentence.ents:
+                if ent.type != "ORDINAL":  # Skip replacing numbers classified as ORDINAL
+                    text = text.replace(ent.text, f"({ent.type})")
+
+        print(text)
+        
+        return text
 
 class OutlierRemover(BaseEstimator, TransformerMixin):
     """Class for detecting and removing outliers from data."""
