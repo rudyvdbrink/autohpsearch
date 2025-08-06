@@ -178,3 +178,4 @@ to_do.txt
 *.joblib
 reports/
 scrap/
+models/

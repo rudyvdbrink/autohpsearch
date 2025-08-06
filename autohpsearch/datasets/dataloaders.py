@@ -1,7 +1,7 @@
 #  %% libraries
 from sklearn.datasets import fetch_openml
 from sklearn.model_selection import train_test_split
-
+from datasets import load_dataset, DatasetDict
 
 # %% functions 
 
@@ -19,3 +19,17 @@ def fetch_housing():
     X_train, X_test, y_train, y_test = train_test_split(data, target, test_size=0.25, random_state=42)
     
     return X_train, X_test, y_train, y_test
+
+
+def fetch_imdb():
+
+    # Load the IMDB dataset
+    dataset = load_dataset("imdb")
+
+    # Keep only the 'train' and 'test' splits
+    dataset = DatasetDict({
+        "train": dataset["train"],
+        "test": dataset["test"]
+    })
+
+    return dataset
