@@ -3,7 +3,7 @@
 
 A Python package for automatic hyperparameter tuning of machine learning models for cross-sectional data. AutoHPSearch simplifies the process of hyperparameter optimization for various machine learning models by providing a unified interface to tune hyperparameters across multiple model types.
 
-AutoHPSearch also contains functionality for full end-to-end pipelines that include cleaning, parameter search, model evaluation, automated production of data reports in markdown format ([example here](https://github.com/rudyvdbrink/autohpsearch/blob/main/example_reports/data_report_v0001_20250612_200805.md)), as well as fine tuning large language models with low-rank adapters.  
+AutoHPSearch also contains functionality for full end-to-end pipelines that include cleaning, parameter search, model evaluation, automated production of data reports in markdown format ([example here](https://github.com/rudyvdbrink/autohpsearch/blob/main/example_reports/data_report_v0001_20250612_200805.md)), as well as fine tuning large language models (LLMs) with just a few lines of code.  
 
 The hyperparameter search space is navigated with grid, random, or bayesian search. Random search is faster but provides a less comprehensive coverage of the search space. CUDA-enabled computing for neural network implementations is included.
 
@@ -196,6 +196,7 @@ These models provide flexibility in architecture design and training configurati
 Large language model classes:
 - `AutoLoraForSeqClass`: For sequence classificiation tasks
 - `AutoLoraForSeqReg`: For sequence regression tasks
+- `AutoLoraForSeqDual`: for dual task models that fit both a regression and classification head simultaneously
 
 ## Author
 
