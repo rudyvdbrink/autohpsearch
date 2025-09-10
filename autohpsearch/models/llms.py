@@ -197,7 +197,7 @@ class AutoLoraBase():
             target_modules = ["query", "key", "value"]
         elif "gpt" in model_type:
             target_modules = ["c_attn"]
-        elif "llama" in model_type:
+        elif "llama" in model_type or 'meta' in model_type:
             target_modules = ["q_proj", "k_proj"]
         else:
             raise ValueError(f"Unsupported model type: {model_type}")
@@ -534,7 +534,7 @@ class AutoLoraForSeqClass(AutoLoraBase):
 
         return self.probabilities
 
-    def precict(self, dataset):
+    def predict(self, dataset):
         """
         Predict labels for a given dataset.
         
