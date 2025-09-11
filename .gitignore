@@ -180,3 +180,4 @@ reports/
 scrap/
 models/
 !/autohpsearch/models/
+.vscode/
