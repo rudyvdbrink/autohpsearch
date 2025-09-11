@@ -3,7 +3,7 @@ name: Publish to PyPI
 on:
   push:
     tags:
-      - "pypi"        
+      - "v*"        
   workflow_dispatch:  # allow manual runs from the Actions tab
 
 jobs:
