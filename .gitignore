@@ -178,6 +178,5 @@ to_do.txt
 *.joblib
 reports/
 scrap/
-models/
 !/autohpsearch/models/
 .vscode/
